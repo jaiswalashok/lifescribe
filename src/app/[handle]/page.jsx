@@ -332,26 +332,78 @@ export default function HandlePage() {
     }
     setIsConnected(connected);
 
-    // Query posts
-    let q;
-    if (owner) {
-      q = query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id), orderBy('created_date', 'desc'));
-    } else if (connected) {
-      q = query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id), orderBy('created_date', 'desc'));
-    } else {
-      q = query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id), where('audience', '==', 'public'), orderBy('created_date', 'desc'));
-    }
-
+    // Query posts - get profile owner's posts AND their connections' posts
     try {
-      const snap = await getDocs(q);
-      const rawPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // For inner circle (non-owner) filter out private posts
-      const filtered = owner ? rawPosts : connected
-        ? rawPosts.filter(p => p.audience !== 'private')
-        : rawPosts;
-      // Attach profile info to each post
-      setPosts(filtered.map(p => ({ ...p, profile_picture_url: profile.profile_picture_url, current_mood: profile.current_mood })));
-    } catch {
+      let allFeedPosts = [];
+
+      // 1. Get profile owner's posts
+      let ownerQuery;
+      if (owner) {
+        // Owner sees all their own posts
+        ownerQuery = query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id), orderBy('created_date', 'desc'));
+      } else if (connected) {
+        // Connected users see public + connections posts
+        ownerQuery = query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id), orderBy('created_date', 'desc'));
+      } else {
+        // Public visitors see only public posts
+        ownerQuery = query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id), where('audience', '==', 'public'), orderBy('created_date', 'desc'));
+      }
+
+      const ownerSnap = await getDocs(ownerQuery);
+      const ownerPosts = ownerSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      // Filter owner posts based on audience
+      const filteredOwnerPosts = owner ? ownerPosts : connected
+        ? ownerPosts.filter(p => p.audience !== 'private')
+        : ownerPosts;
+
+      allFeedPosts.push(...filteredOwnerPosts);
+
+      // 2. If owner is viewing, also get their connections' posts
+      if (owner) {
+        const connectionsSnap = await getDocs(query(collection(db, 'connections'), where('user_id', '==', profile.user_id)));
+        const connectionUserIds = connectionsSnap.docs.map(d => d.data().connected_user_id);
+
+        if (connectionUserIds.length > 0) {
+          // Fetch posts from connections (public + connections audience)
+          const connectionPostsSnap = await getDocs(query(
+            collection(db, 'journal_entries'),
+            orderBy('created_date', 'desc')
+          ));
+          
+          const connectionPosts = connectionPostsSnap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(p => 
+              connectionUserIds.includes(p.user_id) && 
+              (p.audience === 'public' || p.audience === 'connections')
+            );
+
+          allFeedPosts.push(...connectionPosts);
+        }
+      }
+
+      // Sort all posts by date
+      allFeedPosts.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+
+      // Fetch all profiles to enrich posts with author info
+      const profilesSnap = await getDocs(collection(db, 'user_profiles'));
+      const profilesMap = {};
+      profilesSnap.docs.forEach(d => {
+        const data = d.data();
+        profilesMap[data.user_id] = data;
+      });
+
+      // Enrich posts with profile data
+      const enrichedPosts = allFeedPosts.map(p => ({
+        ...p,
+        profile_picture_url: profilesMap[p.user_id]?.profile_picture_url || profile.profile_picture_url,
+        current_mood: profilesMap[p.user_id]?.current_mood || profile.current_mood,
+        username: profilesMap[p.user_id]?.username || p.username,
+      }));
+
+      setPosts(enrichedPosts);
+    } catch (err) {
+      console.error('Error loading feed:', err);
       setPosts([]);
     }
     setLoading(false);
