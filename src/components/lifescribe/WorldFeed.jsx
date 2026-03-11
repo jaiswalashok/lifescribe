@@ -1,6 +1,5 @@
+'use client';
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
 import MoodRingAvatar from './MoodRingAvatar';
 import { getMoodLabel } from './constants';
 import { MapPin, Briefcase, Image as ImageIcon, MessageCircle } from 'lucide-react';

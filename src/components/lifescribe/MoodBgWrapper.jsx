@@ -1,3 +1,4 @@
+'use client';
 import React from 'react';
 import { MOOD_COLORS, DEFAULT_MOOD_COLOR } from './constants';
 

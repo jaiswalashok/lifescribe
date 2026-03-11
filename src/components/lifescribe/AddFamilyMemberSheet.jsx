@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, Copy, Check } from 'lucide-react';
@@ -102,6 +103,24 @@ export default function AddFamilyMemberSheet({ open, onClose, circleId, onAdded 
     const baseUrl = window.location.origin;
     const link = `${baseUrl}/family-invite?token=${inviteToken}`;
     setInviteLink(link);
+
+    // Send invite email via Resend if email provided
+    if (email.trim()) {
+      try {
+        await fetch('/api/send-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: email.trim(),
+            inviterName: user.full_name || 'Someone',
+            inviteLink: link,
+            type: 'family',
+          }),
+        });
+      } catch {
+        // email send failure is non-blocking
+      }
+    }
 
     setSaving(false);
     setStep('link');

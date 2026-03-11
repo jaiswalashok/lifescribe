@@ -1,8 +1,10 @@
+'use client';
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import MoodRingAvatar from './MoodRingAvatar';
 import { Send } from 'lucide-react';
+import VoiceInput from './VoiceInput';
 import { format } from 'date-fns';
 
 export default function PostComments({ postId, currentUserName, currentUserMood }) {
@@ -58,6 +60,7 @@ export default function PostComments({ postId, currentUserName, currentUserMood 
           placeholder="Add a comment..."
           className="flex-1 bg-[#F5F5F5] rounded-full px-3 py-1.5 text-xs text-[#111111] border-0 outline-none placeholder:text-gray-400"
         />
+        <VoiceInput onTranscript={(t) => setText(prev => prev ? prev + ' ' + t : t)} className="flex-shrink-0" />
         <button
           type="submit"
           disabled={!text.trim()}

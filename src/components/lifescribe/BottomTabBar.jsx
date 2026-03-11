@@ -1,5 +1,6 @@
+'use client';
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { createPageUrl } from '@/utils';
 import { BookOpen, Layers, Users, User, Plus } from 'lucide-react';
 
@@ -36,7 +37,7 @@ export default function BottomTabBar({ currentPage, onCreatePress }) {
           return (
             <Link
               key={tab.name}
-              to={createPageUrl(tab.name)}
+              href={createPageUrl(tab.name)}
               className="flex flex-col items-center gap-1 min-w-[56px]"
             >
               <div className="relative">

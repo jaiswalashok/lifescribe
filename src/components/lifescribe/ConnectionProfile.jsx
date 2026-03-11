@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, MapPin, Briefcase, Trash2, Copy, Check, RefreshCw } from 'lucide-react';
@@ -21,10 +22,9 @@ export default function ConnectionProfile({ connection, onClose, onDelete }) {
   const handleRegenerateLink = async () => {
     setIsRegenerating(true);
     try {
-      const { data } = await base44.functions.invoke('regenerateInviteLink', {
-        familyRelationshipId: connection.id,
-      });
-      setNewLink(data.invite_link);
+      const token = Math.random().toString(36).substring(2, 15);
+      const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/invite/${token}`;
+      setNewLink(link);
       setShowRegenerateLink(true);
     } catch (error) {
       console.error('Error regenerating link:', error);

@@ -1,9 +1,13 @@
+'use client';
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ImagePlus, Video, Trash2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import VoiceInput from '@/components/lifescribe/VoiceInput';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export default function AddContributionSheet({ open, onClose, capsuleId, onAdded }) {
   const [mediaFiles, setMediaFiles] = useState([]); // [{ file, previewUrl, type }]
@@ -43,12 +47,14 @@ export default function AddContributionSheet({ open, onClose, capsuleId, onAdded
 
     const user = await base44.auth.me();
 
-    // Upload all media files
+    // Upload all media files to Firebase Storage
     const uploadedUrls = [];
     const uploadedTypes = [];
     for (const item of mediaFiles) {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: item.file });
-      uploadedUrls.push(file_url);
+      const storageRef = ref(storage, `capsule_media/${Date.now()}_${item.file.name}`);
+      await uploadBytes(storageRef, item.file);
+      const url = await getDownloadURL(storageRef);
+      uploadedUrls.push(url);
       uploadedTypes.push(item.type);
     }
 
@@ -154,12 +160,17 @@ export default function AddContributionSheet({ open, onClose, capsuleId, onAdded
           )}
 
           {/* Caption */}
-          <Textarea
-            value={caption}
-            onChange={e => setCaption(e.target.value)}
-            placeholder="Add a caption… (optional)"
-            className="bg-[#F5F5F5] border-0 rounded-xl text-sm text-[#111111] placeholder:text-gray-300 min-h-[70px] resize-none mb-4"
-          />
+          <div className="relative mb-4">
+            <Textarea
+              value={caption}
+              onChange={e => setCaption(e.target.value)}
+              placeholder="Add a caption… (optional)"
+              className="bg-[#F5F5F5] border-0 rounded-xl text-sm text-[#111111] placeholder:text-gray-300 min-h-[70px] resize-none pr-12"
+            />
+            <div className="absolute bottom-2 right-2">
+              <VoiceInput onTranscript={(text) => setCaption(prev => prev ? prev + ' ' + text : text)} />
+            </div>
+          </div>
 
           <Button
             onClick={handleSave}

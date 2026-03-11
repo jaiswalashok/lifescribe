@@ -1,3 +1,4 @@
+'use client';
 import React from 'react';
 import { getMoodColor } from './constants';
 import { User } from 'lucide-react';

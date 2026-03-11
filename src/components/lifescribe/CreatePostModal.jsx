@@ -1,11 +1,12 @@
+'use client';
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { createPageUrl } from '@/utils';
 import { BookOpen, Gift, X } from 'lucide-react';
 
 export default function CreatePostModal({ open, onClose }) {
-  const navigate = useNavigate();
+  const router = useRouter();
 
   if (!open) return null;
 
@@ -35,7 +36,7 @@ export default function CreatePostModal({ open, onClose }) {
 
           <div className="space-y-3">
             <button
-              onClick={() => { onClose(); navigate(createPageUrl('CreateEntry')); }}
+              onClick={() => { onClose(); router.push(createPageUrl('CreateEntry')); }}
               className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#F5F5F5] hover:bg-gray-100 transition-all text-left"
             >
               <div className="w-12 h-12 rounded-2xl bg-[#1A1A2E] flex items-center justify-center flex-shrink-0">
@@ -48,7 +49,7 @@ export default function CreatePostModal({ open, onClose }) {
             </button>
 
             <button
-              onClick={() => { onClose(); navigate(createPageUrl('CreateCapsule')); }}
+              onClick={() => { onClose(); router.push(createPageUrl('CreateCapsule')); }}
               className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#F5F5F5] hover:bg-gray-100 transition-all text-left"
             >
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">

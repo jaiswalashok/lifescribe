@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import MoodRingAvatar from './MoodRingAvatar';
 import { format } from 'date-fns';

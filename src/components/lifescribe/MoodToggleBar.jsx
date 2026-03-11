@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import { MOOD_OPTIONS, getMoodLabel, MOOD_COLORS } from './constants';
 import { motion, AnimatePresence } from 'framer-motion';
