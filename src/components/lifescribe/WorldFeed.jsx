@@ -1,9 +1,12 @@
 'use client';
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import MoodRingAvatar from './MoodRingAvatar';
 import { getMoodLabel } from './constants';
-import { MapPin, Briefcase, Image as ImageIcon, MessageCircle } from 'lucide-react';
+import { MapPin, Briefcase, Image as ImageIcon, MessageCircle, Globe } from 'lucide-react';
 import PostComments from './PostComments';
+import { format } from 'date-fns';
 
 const MOCK_WORLD_FEED = [
   {
@@ -60,29 +63,106 @@ const MOCK_WORLD_FEED = [
 export default function WorldFeed({ connections, currentUser }) {
   const [openComments, setOpenComments] = useState(null);
 
+  // Fetch all journal entries
+  const { data: allEntries = [], isLoading } = useQuery({
+    queryKey: ['world_feed_entries'],
+    queryFn: () => base44.entities.JournalEntry.list('-created_date', 100),
+  });
+
+  // Fetch all user profiles to map user_id to profile data
+  const { data: allProfiles = [] } = useQuery({
+    queryKey: ['all_user_profiles'],
+    queryFn: () => base44.entities.UserProfile.list(),
+  });
+
+  // Get connected user IDs
+  const connectedUserIds = connections.map(c => c.connected_user_id);
+
+  // Filter entries: show user's own entries (all) OR public/connections entries from connections
+  const worldEntries = allEntries.filter(entry => {
+    const isOwnEntry = entry.user_id === currentUser?.user_id;
+    const isFromConnection = connectedUserIds.includes(entry.user_id);
+    const isPublicOrConnections = entry.audience === 'public' || entry.audience === 'connections';
+    
+    // Show own entries (all audiences) OR connection entries (public/connections only)
+    return isOwnEntry || (isFromConnection && isPublicOrConnections);
+  });
+
+  // Enrich entries with profile data
+  const enrichedEntries = worldEntries.map(entry => {
+    const profile = allProfiles.find(p => p.user_id === entry.user_id);
+    return {
+      ...entry,
+      authorName: profile?.full_name || profile?.username || 'Unknown',
+      authorAvatar: profile?.profile_picture_url,
+      authorMood: profile?.current_mood,
+    };
+  });
+
+  // Combine mock data with real entries for a richer feed
+  const combinedFeed = [
+    ...MOCK_WORLD_FEED.map(mock => ({ ...mock, isMock: true })),
+    ...enrichedEntries,
+  ].sort((a, b) => {
+    // Sort by date, newest first
+    const dateA = a.created_date ? new Date(a.created_date) : new Date(a.date || 0);
+    const dateB = b.created_date ? new Date(b.created_date) : new Date(b.date || 0);
+    return dateB - dateA;
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="w-6 h-6 border-2 border-gray-200 border-t-[#111111] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
-      {MOCK_WORLD_FEED.map(item => (
+      {combinedFeed.map(item => (
         <div key={item.id} className="bg-white rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] overflow-hidden">
           <div className="p-4">
             <div className="flex items-start gap-3">
-              <MoodRingAvatar src={item.avatar} mood={item.mood} size={40} name={item.author} />
+              <MoodRingAvatar 
+                src={item.isMock ? item.avatar : item.authorAvatar} 
+                mood={item.isMock ? item.mood : item.authorMood} 
+                size={40} 
+                name={item.isMock ? item.author : item.authorName} 
+              />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-semibold text-[#111111]">{item.author}</span>
-                  <span className="text-xs text-gray-300">{item.date}</span>
+                  <span className="text-sm font-semibold text-[#111111]">
+                    {item.isMock ? item.author : item.authorName}
+                  </span>
+                  <span className="text-xs text-gray-300">
+                    {item.isMock ? item.date : (item.created_date ? format(new Date(item.created_date), 'MMM d') : '')}
+                  </span>
                 </div>
                 {item.mood && (
                   <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full inline-block mb-1.5">
                     {getMoodLabel(item.mood)}
                   </span>
                 )}
-                <p className="text-sm text-gray-600 leading-relaxed">{item.content}</p>
+                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{item.content}</p>
               </div>
             </div>
           </div>
-          {item.image && (
+          {/* Mock data images */}
+          {item.isMock && item.image && (
             <img src={item.image} alt="" className="w-full h-48 object-cover" />
+          )}
+          {/* Real entry media */}
+          {!item.isMock && item.media_urls && item.media_urls.length > 0 && (
+            <div className={item.media_urls.length === 1 ? '' : 'grid grid-cols-2 gap-0.5'}>
+              {item.media_urls.slice(0, 4).map((url, i) => (
+                item.media_types?.[i] === 'video' ? (
+                  <video key={i} src={url} className="w-full h-48 object-cover" controls />
+                ) : (
+                  <img key={i} src={url} alt="" className="w-full h-48 object-cover" />
+                )
+              ))}
+            </div>
           )}
           {/* Comment toggle */}
           <div className="px-4 pb-2">

@@ -10,8 +10,10 @@ import Toast from '@/components/lifescribe/Toast';
 import BottomSheet from '@/components/lifescribe/BottomSheet';
 import PillBadge from '@/components/lifescribe/PillBadge';
 import { MOOD_OPTIONS, SLEEP_OPTIONS, MOTIVATION_OPTIONS, getMoodLabel, getSleepLabel, getMotivationLabel } from '@/components/lifescribe/constants';
-import { ChevronLeft, Image, Film, Mic, MapPin, AtSign, Smile, Calendar } from 'lucide-react';
+import { ChevronLeft, Image, Film, Mic, MapPin, AtSign, Smile, Calendar, X } from 'lucide-react';
 import VoiceInput from '@/components/lifescribe/VoiceInput';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 function CreateEntryContent() {
   const router = useRouter();
@@ -29,6 +31,7 @@ function CreateEntryContent() {
   const [location, setLocation] = useState('');
   const [mediaUrls, setMediaUrls] = useState([]);
   const [mediaTypes, setMediaTypes] = useState([]);
+  const [uploading, setUploading] = useState(false);
   const [showMood, setShowMood] = useState(false);
   const [showSleep, setShowSleep] = useState(false);
   const [showMotivation, setShowMotivation] = useState(false);
@@ -40,6 +43,40 @@ function CreateEntryContent() {
     queryKey: ['chapters'],
     queryFn: () => base44.entities.Chapter.list(),
   });
+
+  const handleMediaUpload = async (files, type) => {
+    console.log('handleMediaUpload called', { files, type, count: files?.length });
+    if (!files || files.length === 0) {
+      console.log('No files selected');
+      return;
+    }
+    setUploading(true);
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        console.log('Uploading file:', file.name, file.type, file.size);
+        const timestamp = Date.now();
+        const fileName = `${timestamp}_${file.name}`;
+        const storageRef = ref(storage, `entry_media/${fileName}`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        console.log('Upload successful:', url);
+        return { url, type };
+      });
+      const results = await Promise.all(uploadPromises);
+      setMediaUrls(prev => [...prev, ...results.map(r => r.url)]);
+      setMediaTypes(prev => [...prev, ...results.map(r => r.type)]);
+      setToast(`${results.length} file(s) uploaded successfully`);
+    } catch (err) {
+      console.error('Upload error:', err);
+      setToast('Upload failed: ' + err.message);
+    }
+    setUploading(false);
+  };
+
+  const removeMedia = (index) => {
+    setMediaUrls(prev => prev.filter((_, i) => i !== index));
+    setMediaTypes(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSave = async () => {
     if (!content.trim()) return;
@@ -108,8 +145,15 @@ function CreateEntryContent() {
       {mediaUrls.length > 0 && (
         <div className="px-6 py-2 flex gap-2 overflow-x-auto">
           {mediaUrls.map((url, i) => (
-            <div key={i} className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-              <img src={url} alt="" className="w-full h-full object-cover" />
+            <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+              {mediaTypes[i] === 'video' ? (
+                <video src={url} className="w-full h-full object-cover" />
+              ) : (
+                <img src={url} alt="" className="w-full h-full object-cover" />
+              )}
+              <button onClick={() => removeMedia(i)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center">
+                <X className="w-3 h-3 text-white" />
+              </button>
             </div>
           ))}
         </div>
@@ -132,11 +176,14 @@ function CreateEntryContent() {
       </div>
 
       <div className="border-t border-gray-100 px-6 py-3 flex items-center gap-5">
-        <label className="cursor-pointer text-gray-400 hover:text-gray-600">
+        <label className="cursor-pointer text-gray-400 hover:text-gray-600" title="Add photos">
           <Image className="w-5 h-5" />
-          <input type="file" accept="image/*" multiple className="hidden" />
+          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleMediaUpload(e.target.files, 'image')} disabled={uploading} />
         </label>
-        <button className="text-gray-400 hover:text-gray-600"><Film className="w-5 h-5" /></button>
+        <label className="cursor-pointer text-gray-400 hover:text-gray-600" title="Add video">
+          <Film className="w-5 h-5" />
+          <input type="file" accept="video/*" className="hidden" onChange={(e) => handleMediaUpload(e.target.files, 'video')} disabled={uploading} />
+        </label>
         <button className="text-gray-400 hover:text-gray-600"><MapPin className="w-5 h-5" /></button>
         <button className="text-gray-400 hover:text-gray-600"><AtSign className="w-5 h-5" /></button>
         <button onClick={() => setShowMood(true)} className="text-gray-400 hover:text-gray-600">

@@ -1,8 +1,0 @@
-{
-  "/Chapters/page": "app/Chapters/page.js",
-  "/CreateChapter/page": "app/CreateChapter/page.js",
-  "/Home/page": "app/Home/page.js",
-  "/Circles/page": "app/Circles/page.js",
-  "/CreateCircle/page": "app/CreateCircle/page.js",
-  "/Profile/page": "app/Profile/page.js"
-}

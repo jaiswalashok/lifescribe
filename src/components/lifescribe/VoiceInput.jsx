@@ -3,31 +3,16 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 
 async function polishWithGemini(rawText) {
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey || !rawText.trim()) return rawText;
+  if (!rawText.trim()) return rawText;
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `You are a helpful writing assistant. Clean up the following voice transcription: fix grammar, punctuation, and flow while preserving the original meaning and tone exactly. Return only the cleaned text, nothing else.\n\n"${rawText}"`,
-                },
-              ],
-            },
-          ],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
-        }),
-      }
-    );
+    const res = await fetch('/api/polish-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: rawText }),
+    });
     const data = await res.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || rawText;
+    return data?.polished || rawText;
   } catch {
     return rawText;
   }
