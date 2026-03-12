@@ -359,13 +359,16 @@ export default function HandlePage() {
 
       allFeedPosts.push(...filteredOwnerPosts);
 
-      // 2. If owner is viewing, also get their connections' posts
-      if (owner) {
-        const connectionsSnap = await getDocs(query(collection(db, 'connections'), where('user_id', '==', profile.user_id)));
+      // 2. Get connections' posts (for owner viewing their own profile OR current user viewing)
+      // This makes the profile feed work like "My World" - showing connections' content
+      const viewerUserId = currentUser?.uid;
+      if (viewerUserId) {
+        // Get viewer's connections (not profile owner's connections)
+        const connectionsSnap = await getDocs(query(collection(db, 'connections'), where('user_id', '==', viewerUserId)));
         const connectionUserIds = connectionsSnap.docs.map(d => d.data().connected_user_id);
 
         if (connectionUserIds.length > 0) {
-          // Fetch posts from connections (public + connections audience)
+          // Fetch posts from viewer's connections (public + connections audience)
           const connectionPostsSnap = await getDocs(query(
             collection(db, 'journal_entries'),
             orderBy('created_date', 'desc')
@@ -375,6 +378,7 @@ export default function HandlePage() {
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(p => 
               connectionUserIds.includes(p.user_id) && 
+              p.user_id !== profile.user_id && // Don't duplicate profile owner's posts
               (p.audience === 'public' || p.audience === 'connections')
             );
 

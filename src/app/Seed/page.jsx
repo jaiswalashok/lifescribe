@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { auth, db } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { collection, addDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import {
   CheckCircle2, Circle, Loader2, AlertCircle, Trash2,
@@ -378,6 +378,9 @@ export default function SeedPage() {
     setFamilyStatus(prev => ({ ...prev, [member.email]: 'loading' }));
     addLog(`Creating account for ${member.name}…`);
     try {
+      // Ensure persistence is set
+      await setPersistence(auth, browserLocalPersistence);
+      
       // Create the Firebase Auth account (signs in as that user)
       const result = await createUserWithEmailAndPassword(auth, member.email, '123123123');
       const newUid = result.user.uid;
