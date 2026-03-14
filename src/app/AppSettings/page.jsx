@@ -1,11 +1,12 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Crown, Shield, Bell, Mail, Lock, Info, FileText, LogOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Crown, Shield, Bell, Mail, Lock, Info, FileText, LogOut, User } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { auth } from '@/lib/firebase';
 
 const menuItems = [
   { id: 'subscription', label: 'Subscription', icon: Crown, page: 'Subscription' },
@@ -21,10 +22,33 @@ const menuItems = [
 export default function AppSettings() {
   const router = useRouter();
   const [showLogout, setShowLogout] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      setCurrentUser(user);
+      if (user) {
+        // Console log sign-in method
+        if (user.providerData.length > 0) {
+          const provider = user.providerData[0].providerId;
+          const method = provider === 'password' ? 'Email' : provider === 'google.com' ? 'Google' : provider;
+          console.log('User signed in with:', method);
+          console.log('User email:', user.email);
+        }
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   const { data: profiles = [] } = useQuery({ queryKey: ['user_profiles'], queryFn: () => base44.entities.UserProfile.list() });
   const profile = profiles[0] || {};
   const planLabel = profile.plan_type === 'legacy_plus' ? 'Legacy Plus' : profile.plan_type === 'family_legacy' ? 'Family Legacy' : profile.plan_type === 'free_trial' ? 'Free Trial' : 'Free';
+
+  const getSignInMethod = () => {
+    if (!currentUser?.providerData?.length) return 'Unknown';
+    const provider = currentUser.providerData[0].providerId;
+    return provider === 'password' ? 'Email' : provider === 'google.com' ? 'Google' : provider;
+  };
 
   const handleLogout = async () => {
     await base44.auth.logout();
@@ -39,6 +63,26 @@ export default function AppSettings() {
       </div>
 
       <div className="px-4">
+        <div className="mb-4">
+          <p className="text-xs font-medium text-gray-400 px-2 mb-2 uppercase tracking-wider">Account</p>
+          <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+            <div className="flex items-center gap-3">
+              <User className="w-4 h-4 text-gray-400" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500">Email</p>
+                <p className="text-sm text-[#111111] truncate">{currentUser?.email || 'Loading...'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Shield className="w-4 h-4 text-gray-400" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500">Sign-in method</p>
+                <p className="text-sm text-[#111111]">{getSignInMethod()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="mb-4">
           <p className="text-xs font-medium text-gray-400 px-2 mb-2 uppercase tracking-wider">Profile</p>
           {['About Me', 'Location', 'Relationship', 'Work'].map(section => (
