@@ -286,7 +286,8 @@ function FeedItem({ post }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HandlePage() {
-  const { handle } = useParams();
+  const { handle: rawHandle } = useParams();
+  const handle = rawHandle?.startsWith('@') || rawHandle?.startsWith('%40') ? rawHandle.replace(/^(@|%40)/, '') : rawHandle;
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState(undefined); // undefined = loading
   const [targetProfile, setTargetProfile] = useState(null);

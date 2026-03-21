@@ -56,7 +56,7 @@ function EntryDetailContent() {
       <div className="flex items-center justify-between px-4 pt-12 pb-3 sticky top-0 bg-white z-10">
         <button onClick={() => router.back()} className="text-gray-400"><ChevronLeft className="w-6 h-6" /></button>
         <div className="flex items-center gap-3">
-          <button className="text-gray-400 hover:text-gray-600"><Pencil className="w-4 h-4" /></button>
+          <button onClick={() => router.push(createPageUrl('CreateEntry') + `?edit=${entryId}`)} className="text-gray-400 hover:text-gray-600"><Pencil className="w-4 h-4" /></button>
           <button onClick={() => setShowDeleteConfirm(true)} className="text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
         </div>
       </div>

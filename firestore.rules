@@ -1,6 +1,63 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // User profiles: owner can read/write; any authenticated user can read (for handle pages, connections)
+    match /user_profiles/{document} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+    }
+
+    // Journal entries: owner can read/write; authenticated users can read public posts
+    match /journal_entries/{document} {
+      allow read: if request.auth != null
+        && (resource.data.user_id == request.auth.uid
+            || resource.data.audience == 'public'
+            || resource.data.audience == 'connections');
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+    }
+
+    // Connections: owner can read/write; connected users can read
+    match /connections/{document} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+    }
+
+    // Family relationships and members: readable by authenticated users
+    match /family_relationships/{document} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+    }
+
+    match /family_members/{document} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+    }
+
+    // Comments: readable by authenticated users
+    match /comments/{document} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+    }
+
+    // All other collections: default owner-only access
     match /{collection}/{document} {
       allow read, update, delete: if request.auth != null
         && resource.data.user_id == request.auth.uid;

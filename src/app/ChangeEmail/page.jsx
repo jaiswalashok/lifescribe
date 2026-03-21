@@ -1,17 +1,26 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import Toast from '@/components/lifescribe/Toast';
+import { auth } from '@/lib/firebase';
 
 export default function ChangeEmail() {
   const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [toast, setToast] = useState('');
+  const [currentEmail, setCurrentEmail] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (user) setCurrentEmail(user.email || '');
+    });
+    return unsubscribe;
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">
@@ -20,6 +29,12 @@ export default function ChangeEmail() {
         <h1 className="text-lg font-semibold text-[#111111] ml-3">Change Email</h1>
       </div>
       <div className="px-6 space-y-5">
+        {currentEmail && (
+          <div className="bg-[#F5F5F5] rounded-xl p-3">
+            <p className="text-xs text-gray-500">Current email</p>
+            <p className="text-sm text-[#111111] font-medium">{currentEmail}</p>
+          </div>
+        )}
         <div>
           <Label className="text-xs font-medium text-gray-500 mb-1.5 block">Current Password</Label>
           <Input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="bg-[#F5F5F5] border-0 h-12 rounded-xl text-[#111111]" />

@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Toast from '@/components/lifescribe/Toast';
 import { ChevronLeft, Camera } from 'lucide-react';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 
 const COUNTRIES = [
   { code: 'SG', name: 'Singapore', cities: ['Singapore'] },
@@ -50,13 +52,33 @@ function EditProfileContent() {
   const handleChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
   const getCurrentCitiesList = () => COUNTRIES.find(c => c.name === selectedCountry)?.cities || [];
 
+  const handleProfilePicUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const fileRef = storageRef(storage, `profile_pictures/${Date.now()}_${file.name}`);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      handleChange('profile_picture_url', url);
+      setToast('Photo uploaded. Click Save to keep it.');
+    } catch (err) {
+      console.error('Upload error:', err);
+      setToast('Failed to upload photo.');
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
-    if (profiles.length > 0) {
-      await base44.entities.UserProfile.update(profiles[0].id, { ...form });
+    try {
+      if (profiles.length > 0) {
+        await base44.entities.UserProfile.update(profiles[0].id, { ...form });
+      }
+      queryClient.invalidateQueries({ queryKey: ['user_profiles'] });
+      setToast('Profile updated.');
+    } catch (err) {
+      console.error('Profile save error:', err);
+      setToast(err.message || 'Failed to save profile.');
     }
-    queryClient.invalidateQueries({ queryKey: ['user_profiles'] });
-    setToast('Profile updated.');
     setSaving(false);
   };
 
@@ -81,13 +103,13 @@ function EditProfileContent() {
                 )}
                 <label className="absolute bottom-0 right-0 bg-[#111111] text-white p-2 rounded-full cursor-pointer hover:bg-gray-800">
                   <Camera className="w-4 h-4" />
-                  <input type="file" accept="image/*" className="hidden" />
+                  <input type="file" accept="image/*" className="hidden" onChange={handleProfilePicUpload} />
                 </label>
               </div>
             </div>
             <div>
               <Label className="text-xs font-medium text-gray-500 mb-1.5 block">Full Name</Label>
-              <Input value={user?.full_name || ''} disabled className="bg-[#F5F5F5] border-0 h-12 rounded-xl text-gray-400" />
+              <Input value={form.full_name ?? user?.full_name ?? ''} onChange={e => handleChange('full_name', e.target.value)} className="bg-[#F5F5F5] border-0 h-12 rounded-xl text-[#111111]" />
             </div>
             <div>
               <Label className="text-xs font-medium text-gray-500 mb-1.5 block">Username</Label>

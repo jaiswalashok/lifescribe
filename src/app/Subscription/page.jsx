@@ -13,9 +13,10 @@ export default function Subscription() {
 
   const { data: profiles = [] } = useQuery({ queryKey: ['user_profiles'], queryFn: () => base44.entities.UserProfile.list() });
   const profile = profiles[0] || {};
-  const isTrial = profile.plan_type === 'free_trial';
-  const isPlus = profile.plan_type === 'legacy_plus';
-  const isFamily = profile.plan_type === 'family_legacy';
+  const effectivePlanType = profile.plan_type || (typeof window !== 'undefined' ? localStorage.getItem('lifescribe_plan') : null) || 'free';
+  const isTrial = effectivePlanType === 'free_trial';
+  const isPlus = effectivePlanType === 'legacy_plus';
+  const isFamily = effectivePlanType === 'family_legacy';
 
   const trialStart = profile.trial_start_date ? new Date(profile.trial_start_date) : new Date();
   const trialEnd = addDays(trialStart, 14);
