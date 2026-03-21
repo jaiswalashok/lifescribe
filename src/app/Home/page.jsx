@@ -93,7 +93,7 @@ export default function Home() {
     <MoodBgWrapper mood={currentMood} className="min-h-screen pb-24">
       <div className="bg-white/80 backdrop-blur-sm px-6 pt-14 pb-4 border-b border-gray-100/50">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-[#1A1A2E]">{displayName}'s Vault</h1>
+          <h1 className="text-2xl font-bold text-[#1A1A2E]">{displayName === 'Your' ? 'Your' : `${displayName}'s`} Vault</h1>
           <MoodToggleBar currentMood={currentMood} onMoodChange={handleMoodChange} />
         </div>
         <div className="flex gap-0 bg-[#F5F5F5] rounded-full p-1">

@@ -81,27 +81,35 @@ function CreateEntryContent() {
   const handleSave = async () => {
     if (!content.trim()) return;
     setSaving(true);
-    await base44.entities.JournalEntry.create({
-      content,
-      mood: mood || undefined,
-      sleep_quality: sleepQuality || undefined,
-      motivation: motivation || undefined,
-      audience,
-      chapter_id: chapterId || undefined,
-      location: location || undefined,
-      media_urls: mediaUrls.length > 0 ? mediaUrls : undefined,
-      media_types: mediaTypes.length > 0 ? mediaTypes : undefined,
-      entry_date: entryDate,
-    });
-    if (mood) {
-      const profiles = await base44.entities.UserProfile.list();
-      if (profiles.length > 0) {
-        await base44.entities.UserProfile.update(profiles[0].id, { current_mood: mood });
+    try {
+      await base44.entities.JournalEntry.create({
+        content,
+        mood: mood || undefined,
+        sleep_quality: sleepQuality || undefined,
+        motivation: motivation || undefined,
+        audience,
+        chapter_id: chapterId || undefined,
+        location: location || undefined,
+        media_urls: mediaUrls.length > 0 ? mediaUrls : undefined,
+        media_types: mediaTypes.length > 0 ? mediaTypes : undefined,
+        entry_date: entryDate,
+      });
+      if (mood) {
+        const profiles = await base44.entities.UserProfile.list();
+        if (profiles.length > 0) {
+          await base44.entities.UserProfile.update(profiles[0].id, { current_mood: mood });
+        }
       }
+      queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
+      setToast('Entry saved.');
+      setTimeout(() => router.push(createPageUrl('Home')), 1200);
+    } catch (err) {
+      console.error('Entry save error:', err);
+      setToast(err.message?.includes('permission')
+        ? 'Unable to save entry. Please try signing out and back in.'
+        : err.message || 'Failed to save entry. Please try again.');
     }
-    queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
-    setToast('Entry saved.');
-    setTimeout(() => router.push(createPageUrl('Home')), 1200);
+    setSaving(false);
   };
 
   return (

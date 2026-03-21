@@ -22,20 +22,13 @@ const menuItems = [
 export default function AppSettings() {
   const router = useRouter();
   const [showLogout, setShowLogout] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(auth.currentUser);
+  const [authLoading, setAuthLoading] = useState(!auth.currentUser);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
       setCurrentUser(user);
-      if (user) {
-        // Console log sign-in method
-        if (user.providerData.length > 0) {
-          const provider = user.providerData[0].providerId;
-          const method = provider === 'password' ? 'Email' : provider === 'google.com' ? 'Google' : provider;
-          console.log('User signed in with:', method);
-          console.log('User email:', user.email);
-        }
-      }
+      setAuthLoading(false);
     });
     return unsubscribe;
   }, []);
@@ -45,7 +38,9 @@ export default function AppSettings() {
   const planLabel = profile.plan_type === 'legacy_plus' ? 'Legacy Plus' : profile.plan_type === 'family_legacy' ? 'Family Legacy' : profile.plan_type === 'free_trial' ? 'Free Trial' : 'Free';
 
   const getSignInMethod = () => {
-    if (!currentUser?.providerData?.length) return 'Unknown';
+    if (authLoading) return 'Loading...';
+    if (!currentUser) return 'Not signed in';
+    if (!currentUser.providerData?.length) return 'Email';
     const provider = currentUser.providerData[0].providerId;
     return provider === 'password' ? 'Email' : provider === 'google.com' ? 'Google' : provider;
   };
@@ -58,7 +53,7 @@ export default function AppSettings() {
   return (
     <div className="min-h-screen bg-white">
       <div className="flex items-center px-4 pt-12 pb-4">
-        <button onClick={() => router.back()} className="text-gray-400"><ChevronLeft className="w-6 h-6" /></button>
+        <button onClick={() => { try { router.back(); } catch { router.push(createPageUrl('Profile')); } }} className="text-gray-400"><ChevronLeft className="w-6 h-6" /></button>
         <h1 className="text-lg font-semibold text-[#111111] ml-3">Settings</h1>
       </div>
 
@@ -70,7 +65,7 @@ export default function AppSettings() {
               <User className="w-4 h-4 text-gray-400" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-500">Email</p>
-                <p className="text-sm text-[#111111] truncate">{currentUser?.email || 'Loading...'}</p>
+                <p className="text-sm text-[#111111] truncate">{authLoading ? 'Loading...' : (currentUser?.email || 'Not signed in')}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">

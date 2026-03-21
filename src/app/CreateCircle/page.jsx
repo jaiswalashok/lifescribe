@@ -26,13 +26,31 @@ export default function CreateCircle() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
 
+  const [error, setError] = useState('');
+
   const handleSave = async () => {
-    if (!name.trim() || !circleType) return;
+    setError('');
+    if (!name.trim()) {
+      setError('Please enter a circle name.');
+      return;
+    }
+    if (!circleType) {
+      setError('Please select a circle type.');
+      return;
+    }
     setSaving(true);
-    await base44.entities.Circle.create({ name, circle_type: circleType, privacy_setting: privacy });
-    queryClient.invalidateQueries({ queryKey: ['circles'] });
-    setToast('Circle created.');
-    setTimeout(() => router.push(createPageUrl('Circles')), 1200);
+    try {
+      await base44.entities.Circle.create({ name, circle_type: circleType, privacy_setting: privacy });
+      queryClient.invalidateQueries({ queryKey: ['circles'] });
+      setToast('Circle created.');
+      setTimeout(() => router.push(createPageUrl('Circles')), 1200);
+    } catch (err) {
+      console.error('Circle creation error:', err);
+      setError(err.message?.includes('permission')
+        ? 'Unable to create circle. Please try signing out and back in.'
+        : err.message || 'Failed to create circle. Please try again.');
+    }
+    setSaving(false);
   };
 
   return (
@@ -43,6 +61,7 @@ export default function CreateCircle() {
       </div>
 
       <div className="px-6 space-y-6">
+        {error && <p className="text-sm text-red-500">{error}</p>}
         <div>
           <Label className="text-xs font-medium text-gray-500 mb-1.5 block">Circle Name</Label>
           <Input value={name} onChange={e => setName(e.target.value)} placeholder="Name this circle"

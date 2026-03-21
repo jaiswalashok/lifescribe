@@ -32,7 +32,7 @@ export default function MoodToggleBar({ currentMood, onMoodChange }) {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="absolute top-10 left-0 z-30 bg-white rounded-2xl shadow-xl p-3 w-72 grid grid-cols-4 gap-2"
+            className="absolute top-10 right-0 z-30 bg-white rounded-2xl shadow-xl p-3 w-72 grid grid-cols-4 gap-2"
           >
             {MOOD_OPTIONS.map(opt => (
               <button

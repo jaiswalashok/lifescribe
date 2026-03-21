@@ -19,15 +19,37 @@ export default function CreateAccount() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const formatFirebaseError = (err) => {
+    const code = err?.code || '';
+    if (code.includes('invalid-email')) return 'Please enter a valid email address.';
+    if (code.includes('email-already-in-use')) return 'An account with this email already exists. Try signing in instead.';
+    if (code.includes('weak-password')) return 'Password is too weak. Please use at least 6 characters.';
+    if (code.includes('network-request-failed')) return 'Network error. Please check your connection and try again.';
+    return err.message || 'Failed to create account. Please try again.';
+  };
+
+  const validateForm = () => {
+    if (!form.email.trim()) return 'Please enter your email address.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Please enter a valid email address.';
+    if (!form.password) return 'Please enter a password.';
+    if (form.password.length < 6) return 'Password must be at least 6 characters long.';
+    return null;
+  };
+
   const handleSubmit = async () => {
-    setLoading(true);
     setError('');
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setLoading(true);
     try {
       await base44.auth.registerWithEmail(form.email, form.password);
       localStorage.setItem('lifescribe_signup', JSON.stringify(form));
       router.push(createPageUrl('EmailVerify') + `?email=${encodeURIComponent(form.email)}`);
     } catch (err) {
-      setError(err.message || 'Failed to create account');
+      setError(formatFirebaseError(err));
     }
     setLoading(false);
   };
@@ -87,6 +109,7 @@ export default function CreateAccount() {
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
+          <p className="text-xs text-gray-400 mt-1.5 px-1">Must be at least 6 characters</p>
         </div>
       </div>
 

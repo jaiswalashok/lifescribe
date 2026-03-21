@@ -1,11 +1,23 @@
 'use client';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPageUrl } from '@/utils';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function LanguageSelect() {
   const router = useRouter();
+
+  // If user is already authenticated, redirect to Home
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        router.replace(createPageUrl('Home'));
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
 
   const languages = [
     { code: 'en', label: 'English', native: 'English' },

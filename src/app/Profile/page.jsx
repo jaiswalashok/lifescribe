@@ -34,8 +34,8 @@ export default function Profile() {
           <div className="flex items-center gap-4">
             <MoodRingAvatar src={profile.profile_picture_url || user?.profile_picture} mood={profile.current_mood} size={56} name={user?.full_name} />
             <div>
-              <h1 className="text-lg font-bold text-[#1A1A2E]">{user?.full_name || 'Your Name'}</h1>
-              <p className="text-sm text-gray-400">@{profile.username || 'username'}</p>
+              <h1 className="text-lg font-bold text-[#1A1A2E]">{profile.full_name || user?.full_name || user?.email?.split('@')[0] || 'Set up your profile'}</h1>
+              <p className="text-sm text-gray-400">@{profile.username || user?.email?.split('@')[0] || 'username'}</p>
             </div>
           </div>
           <button onClick={() => router.push(createPageUrl('AppSettings'))} className="text-gray-400 hover:text-gray-600 mt-1">

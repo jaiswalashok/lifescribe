@@ -108,9 +108,12 @@ const createEntity = (collectionName) => ({
 
   async create(data) {
     const userId = getUserId();
+    if (!userId) {
+      throw new Error('You must be signed in to perform this action. Please sign in and try again.');
+    }
     const payload = stripUndefined({
       ...data,
-      user_id: data.user_id === 'current' ? userId : userId,
+      user_id: userId,
       created_date: new Date().toISOString(),
       updated_date: new Date().toISOString(),
     });
@@ -119,6 +122,10 @@ const createEntity = (collectionName) => ({
   },
 
   async update(id, data) {
+    const userId = getUserId();
+    if (!userId) {
+      throw new Error('You must be signed in to perform this action. Please sign in and try again.');
+    }
     const docRef = doc(db, collectionName, id);
     const payload = stripUndefined({ ...data, updated_date: new Date().toISOString() });
     await updateDoc(docRef, payload);
