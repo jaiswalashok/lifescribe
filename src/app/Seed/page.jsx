@@ -434,6 +434,133 @@ export default function SeedPage() {
     }
   };
 
+  // ── Seed connections + family entries ─────────────────────────────────────
+
+  const FAMILY_ENTRIES = {
+    'ashok.jaiswal+ariane@gmail.com': [
+      { content: 'Made dumplings with Nai Nai\'s recipe today. Sarika helped fold them — they looked more like clouds than dumplings but she was so proud. The kitchen was a mess and I wouldn\'t change a thing.', mood: 'loving', audience: 'connections', entry_date: '2026-03-15', media_urls: ['https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=800&h=600&fit=crop'], media_types: ['image'] },
+      { content: 'Sunday morning yoga in the living room while Sarika tried to copy me. She kept falling over and giggling. These are the moments.', mood: 'calm', audience: 'public', entry_date: '2026-03-12' },
+      { content: 'Read through old letters from my university days. Found one from Ashok — the most awkward love letter ever written. I\'m keeping it forever.', mood: 'nostalgic', audience: 'private', entry_date: '2026-03-08' },
+    ],
+    'ashok.jaiswal+sarika@gmail.com': [
+      { content: 'I drew a picture of our family today! Papa is the tallest, Mama has the prettiest hair, and I am Princess Sarika with a BIG crown.', mood: 'happy', audience: 'connections', entry_date: '2026-03-14', media_urls: ['https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&h=600&fit=crop'], media_types: ['image'] },
+      { content: 'We went to the park and I found a ladybug! I named her Spotty. She flew away but I think she\'ll come back tomorrow.', mood: 'happy', audience: 'public', entry_date: '2026-03-10' },
+    ],
+    'ashok.jaiswal+dadima@gmail.com': [
+      { content: 'Made chai this morning the way my mother taught me. Three cardamom pods, a pinch of ginger, let it boil twice. Some things never change and that is a blessing.', mood: 'grateful', audience: 'connections', entry_date: '2026-03-13' },
+      { content: 'Video call with Sarika. She showed me her drawings and sang a song. That child has so much light in her. Prayed for her health and happiness.', mood: 'loving', audience: 'public', entry_date: '2026-03-09' },
+    ],
+    'ashok.jaiswal+dadaji@gmail.com': [
+      { content: 'Walked in the garden today. The tomatoes are coming along nicely. Planted new marigolds near the gate — they remind me of festivals at home when I was young.', mood: 'calm', audience: 'public', entry_date: '2026-03-11', media_urls: ['https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&h=600&fit=crop'], media_types: ['image'] },
+      { content: 'Ashok called today. He works too hard but he is building something good. Told him about the neem tree — still strong after 40 years.', mood: 'grateful', audience: 'connections', entry_date: '2026-03-07' },
+    ],
+  };
+
+  const [connStatus, setConnStatus] = useState('idle');
+
+  const seedConnectionsAndEntries = async () => {
+    if (!ashokPassword) { setToast('Enter your password first'); return; }
+    const ashokEmail = auth.currentUser?.email;
+    const ashokUid = auth.currentUser?.uid;
+    if (!ashokEmail || !ashokUid) { setToast('Not logged in as Ashok'); return; }
+
+    setConnStatus('loading');
+    const ids = loadSeedIds();
+
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+
+      for (const member of FAMILY_MEMBERS) {
+        addLog(`Processing ${member.name}…`);
+
+        // Sign in as the family member
+        let memberUid;
+        try {
+          const res = await signInWithEmailAndPassword(auth, member.email, '123123123');
+          memberUid = res.user.uid;
+          addLog(`Signed in as ${member.name} (${memberUid})`);
+        } catch (err) {
+          addLog(`SKIP ${member.name}: can't sign in — ${err.message}`);
+          continue;
+        }
+
+        // Create entries for this family member
+        const memberEntries = FAMILY_ENTRIES[member.email] || [];
+        for (const entry of memberEntries) {
+          try {
+            const ref = await addDoc(collection(db, 'journal_entries'), {
+              ...entry,
+              user_id: memberUid,
+              username: member.username,
+              created_date: new Date(entry.entry_date).toISOString(),
+              updated_date: new Date().toISOString(),
+            });
+            ids[`fam_entry_${ref.id}`] = { collection: 'journal_entries', id: ref.id };
+            addLog(`Entry created for ${member.name}: "${entry.content.slice(0, 30)}…"`);
+          } catch (err) {
+            addLog(`Entry error for ${member.name}: ${err.message}`);
+          }
+        }
+
+        // Create connection: member → Ashok
+        try {
+          const ref = await addDoc(collection(db, 'connections'), {
+            user_id: memberUid,
+            connected_user_id: ashokUid,
+            connected_user_name: 'Ashok Jaiswal',
+            connected_user_avatar: '',
+            username: 'ashok.jaiswal',
+            relationship_label: member.role === 'Mama' ? 'Husband' : member.role === 'Daughter' ? 'Father' : 'Family',
+            status: 'accepted',
+            created_date: new Date().toISOString(),
+            updated_date: new Date().toISOString(),
+          });
+          ids[`conn_${ref.id}`] = { collection: 'connections', id: ref.id };
+          addLog(`Connection ${member.name} → Ashok created`);
+        } catch (err) {
+          addLog(`Connection error: ${err.message}`);
+        }
+
+        // Sign back in as Ashok
+        await signInWithEmailAndPassword(auth, ashokEmail, ashokPassword);
+
+        // Create connection: Ashok → member
+        try {
+          const ref = await addDoc(collection(db, 'connections'), {
+            user_id: ashokUid,
+            connected_user_id: memberUid,
+            connected_user_name: member.name,
+            connected_user_avatar: member.avatar,
+            connected_user_mood: member.mood,
+            username: member.username,
+            relationship_label: member.role,
+            status: 'accepted',
+            created_date: new Date().toISOString(),
+            updated_date: new Date().toISOString(),
+          });
+          ids[`conn_${ref.id}`] = { collection: 'connections', id: ref.id };
+          addLog(`Connection Ashok → ${member.name} created`);
+        } catch (err) {
+          addLog(`Connection error: ${err.message}`);
+        }
+
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      // Ensure we end signed in as Ashok
+      await signInWithEmailAndPassword(auth, ashokEmail, ashokPassword);
+      saveSeedIds(ids);
+      setSeedIds({ ...ids });
+      setConnStatus('done');
+      setToast('Connections & family entries seeded! 🎉');
+    } catch (err) {
+      addLog(`ERROR: ${err.message}`);
+      try { await signInWithEmailAndPassword(auth, ashokEmail, ashokPassword); } catch {}
+      setConnStatus('error');
+      setToast(`Failed: ${err.message}`);
+    }
+  };
+
   // ── Clear all seed data ────────────────────────────────────────────────────
 
   const clearSeedData = async () => {
@@ -575,6 +702,27 @@ export default function SeedPage() {
               </button>
             </div>
           ))}
+        </div>
+
+        {/* ── Seed Connections & Entries ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-50">
+            <p className="text-sm font-semibold text-[#111111]">Seed Connections & Family Entries</p>
+            <p className="text-xs text-gray-400 mt-0.5">Creates bi-directional connections between Ashok and each family member, plus journal entries (public/connections/private) for each family account to test feed visibility.</p>
+          </div>
+          <div className="px-4 py-3">
+            <Button
+              onClick={seedConnectionsAndEntries}
+              disabled={connStatus === 'loading' || connStatus === 'done' || !ashokPassword}
+              className="w-full bg-[#1A1A2E] text-white hover:bg-[#2a2a4e] rounded-full h-10 font-semibold flex items-center gap-2 justify-center disabled:opacity-40"
+            >
+              <StatusBadge status={connStatus} />
+              {connStatus === 'done' ? 'Connections & Entries Seeded ✓' : connStatus === 'loading' ? 'Seeding connections…' : 'Seed Connections & Family Entries'}
+            </Button>
+            {!ashokPassword && connStatus === 'idle' && (
+              <p className="text-xs text-amber-600 mt-2 text-center">Enter your password in the Family Accounts section above first</p>
+            )}
+          </div>
         </div>
 
         {/* ── Credentials Table ── */}
