@@ -14,6 +14,7 @@ export default function CreateAccount() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [mode, setMode] = useState('signup'); // 'signup' or 'signin'
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -24,15 +25,18 @@ export default function CreateAccount() {
     if (code.includes('invalid-email')) return 'Please enter a valid email address.';
     if (code.includes('email-already-in-use')) return 'An account with this email already exists. Try signing in instead.';
     if (code.includes('weak-password')) return 'Password is too weak. Please use at least 6 characters.';
+    if (code.includes('user-not-found')) return 'No account found with this email. Please sign up first.';
+    if (code.includes('wrong-password') || code.includes('invalid-credential')) return 'Incorrect password. Please try again.';
+    if (code.includes('too-many-requests')) return 'Too many attempts. Please try again later.';
     if (code.includes('network-request-failed')) return 'Network error. Please check your connection and try again.';
-    return err.message || 'Failed to create account. Please try again.';
+    return err.message || 'Something went wrong. Please try again.';
   };
 
   const validateForm = () => {
     if (!form.email.trim()) return 'Please enter your email address.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Please enter a valid email address.';
     if (!form.password) return 'Please enter a password.';
-    if (form.password.length < 6) return 'Password must be at least 6 characters long.';
+    if (mode === 'signup' && form.password.length < 6) return 'Password must be at least 6 characters long.';
     return null;
   };
 
@@ -45,9 +49,14 @@ export default function CreateAccount() {
     }
     setLoading(true);
     try {
-      await base44.auth.registerWithEmail(form.email, form.password);
-      localStorage.setItem('lifescribe_signup', JSON.stringify(form));
-      router.push(createPageUrl('EmailVerify') + `?email=${encodeURIComponent(form.email)}`);
+      if (mode === 'signup') {
+        await base44.auth.registerWithEmail(form.email, form.password);
+        localStorage.setItem('lifescribe_signup', JSON.stringify(form));
+        router.push(createPageUrl('EmailVerify') + `?email=${encodeURIComponent(form.email)}`);
+      } else {
+        await base44.auth.loginWithEmail(form.email, form.password);
+        router.push(createPageUrl('Home'));
+      }
     } catch (err) {
       setError(formatFirebaseError(err));
     }
@@ -64,6 +73,11 @@ export default function CreateAccount() {
     }
   };
 
+  const toggleMode = () => {
+    setMode(m => m === 'signup' ? 'signin' : 'signup');
+    setError('');
+  };
+
   const allFilled = form.email && form.password;
 
   return (
@@ -75,8 +89,12 @@ export default function CreateAccount() {
         <ArrowLeft className="w-5 h-5" />
       </button>
 
-      <h1 className="text-2xl font-bold text-[#1A1A2E] mb-1">Start preserving your story</h1>
-      <p className="text-sm text-gray-400 mb-12">3 months free. No credit card required.</p>
+      <h1 className="text-2xl font-bold text-[#1A1A2E] mb-1">
+        {mode === 'signup' ? 'Start preserving your story' : 'Welcome back'}
+      </h1>
+      <p className="text-sm text-gray-400 mb-12">
+        {mode === 'signup' ? '3 months free. No credit card required.' : 'Sign in to your Lifescribe account'}
+      </p>
 
       {error && <p className="text-sm text-red-500 mb-4">{error}</p>}
 
@@ -98,7 +116,7 @@ export default function CreateAccount() {
               type={showPassword ? 'text' : 'password'}
               value={form.password}
               onChange={e => handleChange('password', e.target.value)}
-              placeholder="Create a password"
+              placeholder={mode === 'signup' ? 'Create a password' : 'Enter your password'}
               className="bg-[#F5F5F5] border-0 h-12 rounded-xl text-[#111111] placeholder:text-gray-300 pr-12"
             />
             <button
@@ -109,7 +127,7 @@ export default function CreateAccount() {
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-1.5 px-1">Must be at least 6 characters</p>
+          {mode === 'signup' && <p className="text-xs text-gray-400 mt-1.5 px-1">Must be at least 6 characters</p>}
         </div>
       </div>
 
@@ -118,7 +136,7 @@ export default function CreateAccount() {
         disabled={!allFilled || loading}
         className="mt-8 w-full bg-[#111111] text-white hover:bg-[#333] rounded-full h-12 text-base font-medium disabled:opacity-40"
       >
-        {loading ? 'Creating account...' : 'Create account'}
+        {loading ? (mode === 'signup' ? 'Creating account...' : 'Signing in...') : (mode === 'signup' ? 'Create account' : 'Sign in')}
       </Button>
 
       <div className="flex items-center gap-3 my-6">
@@ -143,9 +161,9 @@ export default function CreateAccount() {
       <p className="text-center text-[10px] text-gray-300 mt-4">End-to-end encrypted. You own everything you create.</p>
 
       <p className="text-center text-sm text-gray-400 mt-4">
-        Already have an account?{' '}
-        <button onClick={() => router.push(createPageUrl('Home'))} className="text-[#1A1A2E] font-medium underline">
-          Sign in
+        {mode === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
+        <button onClick={toggleMode} className="text-[#1A1A2E] font-medium underline">
+          {mode === 'signup' ? 'Sign in' : 'Sign up'}
         </button>
       </p>
     </div>
