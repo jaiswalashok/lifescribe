@@ -9,9 +9,19 @@ export async function POST(request) {
     }
 
     const isFamily = type === 'family';
-    const subject = isFamily
-      ? `${inviterName} has added you to their Family Circle on Lifescribe`
-      : `${inviterName} invited you to join their Lifescribe circle`;
+    const isTrustee = type === 'trustee';
+
+    const subject = isTrustee
+      ? `${inviterName} has designated you as a LifeTrustee on Lifescribe`
+      : isFamily
+        ? `${inviterName} has added you to their Family Circle on Lifescribe`
+        : `${inviterName} invited you to join their Lifescribe circle`;
+
+    const bodyText = isTrustee
+      ? `<strong>${inviterName}</strong> has designated you as a <strong>LifeTrustee</strong> on Lifescribe. This means you have been entrusted to help preserve and pass on their memories and life story according to their wishes.`
+      : `<strong>${inviterName}</strong> has invited you to ${isFamily ? 'join their family circle' : 'connect'} on Lifescribe — a private vault for life stories, memories, and meaningful moments.`;
+
+    const ctaText = isTrustee ? 'View my responsibilities' : 'Accept Invitation';
 
     const html = `
 <!DOCTYPE html>
@@ -24,13 +34,13 @@ export async function POST(request) {
       <p style="color: rgba(255,255,255,0.6); margin: 6px 0 0; font-size: 13px;">Preserve your story across generations</p>
     </div>
     <div style="padding: 32px;">
-      <p style="color: #111111; font-size: 16px; font-weight: 600; margin: 0 0 12px;">You've been invited</p>
+      <p style="color: #111111; font-size: 16px; font-weight: 600; margin: 0 0 12px;">${isTrustee ? 'You have been designated as a LifeTrustee' : "You've been invited"}</p>
       <p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">
-        <strong>${inviterName}</strong> has invited you to ${isFamily ? 'join their family circle' : 'connect'} on Lifescribe — a private vault for life stories, memories, and meaningful moments.
+        ${bodyText}
       </p>
       <a href="${inviteLink}"
         style="display: inline-block; background: #1A1A2E; color: white; text-decoration: none; padding: 14px 28px; border-radius: 100px; font-size: 14px; font-weight: 600;">
-        Accept Invitation
+        ${ctaText}
       </a>
       <p style="color: #aaa; font-size: 12px; margin: 24px 0 0; line-height: 1.5;">
         Or copy this link: <span style="color: #555;">${inviteLink}</span>
@@ -50,7 +60,7 @@ export async function POST(request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || 'noreply@jaiswals.live',
+        from: process.env.RESEND_FROM_EMAIL || 'noreply@lifescribe.live',
         to: [to],
         subject,
         html,

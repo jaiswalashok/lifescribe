@@ -2,18 +2,43 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createPageUrl } from '@/utils';
+import Toast from '@/components/lifescribe/Toast';
 
 function EmailVerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get('email') || 'your email';
+  const email = searchParams.get('email') || '';
+  const nextPage = searchParams.get('next') || 'Paywall';
+  const nextToken = searchParams.get('token') || '';
 
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const inputRefs = useRef([]);
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [toast, setToast] = useState('');
+  const [serverOtp, setServerOtp] = useState('');
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
+    if (email) sendOtp();
   }, []);
+
+  const sendOtp = async () => {
+    if (!email) return;
+    setSending(true);
+    try {
+      const res = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error('Failed to send code');
+      setToast('Verification code sent!');
+    } catch {
+      setToast('Could not send code. Check your email address.');
+    }
+    setSending(false);
+  };
 
   const handleDigitChange = (index, value) => {
     if (!/^\d?$/.test(value)) return;
@@ -28,9 +53,7 @@ function EmailVerifyContent() {
     if (index === 5 && value) {
       const code = [...newDigits.slice(0, 5), value].join('');
       if (code.length === 6) {
-        setTimeout(() => {
-          router.push(createPageUrl('Paywall'));
-        }, 500);
+        setTimeout(() => verifyOtp(code), 200);
       }
     }
   };
@@ -39,6 +62,30 @@ function EmailVerifyContent() {
     if (e.key === 'Backspace' && !digits[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
+  };
+
+  const verifyOtp = async (code) => {
+    setVerifying(true);
+    try {
+      const res = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: code }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        let dest = createPageUrl(nextPage);
+        if (nextToken) dest += `?token=${nextToken}`;
+        router.push(dest);
+      } else {
+        setToast('Incorrect code. Please try again.');
+        setDigits(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
+      }
+    } catch {
+      setToast('Verification failed. Please try again.');
+    }
+    setVerifying(false);
   };
 
   return (
@@ -66,14 +113,20 @@ function EmailVerifyContent() {
 
       <p className="text-center text-sm text-gray-400">
         Didn't receive the code?{' '}
-        <button className="text-[#1A1A2E] font-medium underline">Resend</button>
+        <button onClick={sendOtp} disabled={sending} className="text-[#1A1A2E] font-medium underline disabled:opacity-50">
+          {sending ? 'Sending…' : 'Resend'}
+        </button>
       </p>
 
       <div className="flex-1" />
 
-      <p className="text-center text-xs text-gray-300">
-        Enter any 6 digits to continue
-      </p>
+      {verifying && <p className="text-center text-xs text-gray-400">Verifying…</p>}
+      {!email && (
+        <p className="text-center text-xs text-gray-300">
+          (No email provided — enter any 6 digits to continue)
+        </p>
+      )}
+      <Toast message={toast} show={!!toast} onClose={() => setToast('')} />
     </div>
   );
 }

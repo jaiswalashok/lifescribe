@@ -1,11 +1,13 @@
 'use client';
-import React, { Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ChevronLeft, Plus } from 'lucide-react';
+import { ChevronLeft, Plus, Share2, Check } from 'lucide-react';
+import BottomSheet from '@/components/lifescribe/BottomSheet';
+import Toast from '@/components/lifescribe/Toast';
 import { Button } from '@/components/ui/button';
 import JournalEntryCard from '@/components/lifescribe/JournalEntryCard';
 import EmptyState from '@/components/lifescribe/EmptyState';
@@ -15,6 +17,10 @@ function ChapterDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const chapterId = searchParams.get('id');
+  const [showShareSheet, setShowShareSheet] = useState(false);
+  const [sharedCircleIds, setSharedCircleIds] = useState([]);
+  const [sharing, setSharing] = useState(false);
+  const [toast, setToast] = useState('');
 
   const { data: chapters = [] } = useQuery({
     queryKey: ['chapters'],
@@ -26,14 +32,28 @@ function ChapterDetailContent() {
     queryFn: () => base44.entities.JournalEntry.list('-created_date'),
   });
 
+  const { data: circles = [] } = useQuery({
+    queryKey: ['circles'],
+    queryFn: () => base44.entities.Circle.list(),
+  });
+
   const chapter = chapters.find(c => c.id === chapterId);
   const entries = allEntries.filter(e => {
-    if (e.chapter_id !== chapterId) return false;
+    if (e.chapter_id !== chapterId || e.is_deleted) return false;
     const entryAudience = e.audience || 'private';
     const effectivePrivacy = getEffectivePrivacy(entryAudience, chapter?.privacy || 'private');
     e._effectiveAudience = effectivePrivacy;
     return true;
   });
+
+  const handleShareToCircle = async () => {
+    if (!sharedCircleIds.length) return;
+    setSharing(true);
+    await base44.entities.Chapter.update(chapterId, { shared_circle_ids: sharedCircleIds });
+    setSharing(false);
+    setShowShareSheet(false);
+    setToast('Chapter shared to selected circles.');
+  };
 
   if (!chapter) {
     return (
@@ -58,14 +78,24 @@ function ChapterDetailContent() {
             </p>
           </div>
         </div>
-        <Button
-          onClick={() => router.push(createPageUrl('CreateEntry') + `?chapter=${chapterId}`)}
-          variant="outline" size="sm"
-          className="rounded-full text-xs border-gray-200 text-gray-500"
-        >
-          <Plus className="w-3.5 h-3.5 mr-1" />
-          Add entry to this chapter
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => router.push(createPageUrl('CreateEntry') + `?chapter=${chapterId}`)}
+            variant="outline" size="sm"
+            className="rounded-full text-xs border-gray-200 text-gray-500"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            Add entry
+          </Button>
+          <Button
+            onClick={() => setShowShareSheet(true)}
+            variant="outline" size="sm"
+            className="rounded-full text-xs border-gray-200 text-gray-500"
+          >
+            <Share2 className="w-3.5 h-3.5 mr-1" />
+            Share to circle
+          </Button>
+        </div>
       </div>
 
       <div className="px-4 pt-4 pb-12">
@@ -88,6 +118,30 @@ function ChapterDetailContent() {
           </div>
         )}
       </div>
+
+      <BottomSheet open={showShareSheet} onClose={() => setShowShareSheet(false)} title="Share chapter to circles">
+        <div className="space-y-2 mb-4">
+          {circles.length === 0 && <p className="text-sm text-gray-400">No circles found. Create one first.</p>}
+          {circles.map(circle => {
+            const selected = sharedCircleIds.includes(circle.id);
+            return (
+              <button key={circle.id} onClick={() => setSharedCircleIds(prev => selected ? prev.filter(id => id !== circle.id) : [...prev, circle.id])}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-colors ${
+                  selected ? 'border-[#1A1A2E] bg-[#1A1A2E]/5' : 'border-gray-100 hover:bg-gray-50'
+                }`}>
+                <span className="flex-1 text-sm text-left text-[#111111]">{circle.name}</span>
+                {selected && <Check className="w-4 h-4 text-[#1A1A2E]" />}
+              </button>
+            );
+          })}
+        </div>
+        <Button onClick={handleShareToCircle} disabled={!sharedCircleIds.length || sharing}
+          className="w-full bg-[#111111] text-white hover:bg-[#333] rounded-full h-11 text-sm font-medium">
+          {sharing ? 'Sharing…' : `Share to ${sharedCircleIds.length} circle${sharedCircleIds.length !== 1 ? 's' : ''}`}
+        </Button>
+      </BottomSheet>
+
+      <Toast message={toast} show={!!toast} onClose={() => setToast('')} />
     </div>
   );
 }

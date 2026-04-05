@@ -1,6 +1,8 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Cake } from 'lucide-react';
 import Toast from '@/components/lifescribe/Toast';
 import { Button } from '@/components/ui/button';
@@ -15,9 +17,22 @@ function Toggle({ value, onChange }) {
 
 export default function NotificationSettings() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState({ follow_requests: true, follow_approvals: true, connection_posts: true, payment_reminders: true });
   const [upcomingDays, setUpcomingDays] = useState(30);
   const [toast, setToast] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const { data: profiles = [] } = useQuery({ queryKey: ['user_profiles'], queryFn: () => base44.entities.UserProfile.list() });
+  const profile = profiles[0];
+
+  useEffect(() => {
+    if (profile?.notification_settings) {
+      try { setSettings(prev => ({ ...prev, ...JSON.parse(profile.notification_settings) })); } catch {}
+    }
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('circles_upcoming_days') : null;
+    if (stored) setUpcomingDays(Number(stored));
+  }, [profile?.id]);
 
   const handleUpcomingDays = (days) => {
     setUpcomingDays(days);
@@ -58,7 +73,21 @@ export default function NotificationSettings() {
             ))}
           </div>
         </div>
-        <Button onClick={() => setToast('Settings saved.')} className="w-full bg-[#111111] text-white hover:bg-[#333] rounded-full h-12 text-sm font-medium mt-6">Save</Button>
+        <Button
+          onClick={async () => {
+            setSaving(true);
+            if (profile?.id) {
+              await base44.entities.UserProfile.update(profile.id, { notification_settings: JSON.stringify(settings) });
+              queryClient.invalidateQueries({ queryKey: ['user_profiles'] });
+            }
+            setSaving(false);
+            setToast('Settings saved.');
+          }}
+          disabled={saving}
+          className="w-full bg-[#111111] text-white hover:bg-[#333] rounded-full h-12 text-sm font-medium mt-6 disabled:opacity-40"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
       </div>
       <Toast message={toast} show={!!toast} onClose={() => setToast('')} />
     </div>

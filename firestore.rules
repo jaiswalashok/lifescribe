@@ -2,21 +2,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // User profiles: owner can read/write; any authenticated user can read (for handle pages, connections)
+    // User profiles: anyone can read (for public handle pages); owner can write
     match /user_profiles/{document} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow create: if request.auth != null
         && request.resource.data.user_id == request.auth.uid;
       allow update, delete: if request.auth != null
         && resource.data.user_id == request.auth.uid;
     }
 
-    // Journal entries: owner can read/write; authenticated users can read public posts
+    // Journal entries: public posts readable by anyone; connections/private require auth
     match /journal_entries/{document} {
-      allow read: if request.auth != null
-        && (resource.data.user_id == request.auth.uid
-            || resource.data.audience == 'public'
-            || resource.data.audience == 'connections');
+      allow read: if resource.data.audience == 'public'
+        || (request.auth != null
+            && (resource.data.user_id == request.auth.uid
+                || resource.data.audience == 'connections'));
       allow create: if request.auth != null
         && request.resource.data.user_id == request.auth.uid;
       allow update, delete: if request.auth != null

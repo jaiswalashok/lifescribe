@@ -3,7 +3,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import PillBadge from './PillBadge';
 import { getMoodLabel, getSleepLabel, getMotivationLabel } from './constants';
-import { Image, Mic, Film } from 'lucide-react';
+import { Image, Mic, Film, MapPin } from 'lucide-react';
 
 export default function JournalEntryCard({ entry, chapters, onClick }) {
   const chapter = chapters?.find(c => c.id === entry.chapter_id);
@@ -61,6 +61,12 @@ export default function JournalEntryCard({ entry, chapters, onClick }) {
           </div>
         )}
       </div>
+      {entry.location && (
+        <div className="flex items-center gap-1 mt-2">
+          <MapPin className="w-3 h-3 text-green-500 flex-shrink-0" />
+          <span className="text-[10px] text-green-600 truncate">{entry.location}</span>
+        </div>
+      )}
     </button>
   );
 }

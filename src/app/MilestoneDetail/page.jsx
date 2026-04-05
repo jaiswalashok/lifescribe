@@ -7,7 +7,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, differenceInYears, differenceInDays } from 'date-fns';
 import { ChevronLeft, Pencil, Trash2, Heart, Briefcase, Home as HomeIcon, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import Toast from '@/components/lifescribe/Toast';
+import BottomSheet from '@/components/lifescribe/BottomSheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const TYPE_ICONS = { romantic: Heart, professional: Briefcase, family: HomeIcon, personal: Star };
@@ -19,6 +22,11 @@ function MilestoneDetailContent() {
   const queryClient = useQueryClient();
   const milestoneId = searchParams.get('id');
   const [showDelete, setShowDelete] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
   const [toast, setToast] = useState('');
 
   const { data: milestones = [] } = useQuery({ queryKey: ['milestones'], queryFn: () => base44.entities.Milestone.list() });
@@ -39,6 +47,23 @@ function MilestoneDetailContent() {
     setTimeout(() => router.push(createPageUrl('Milestones')), 1000);
   };
 
+  const openEdit = () => {
+    setEditTitle(ms.title);
+    setEditDate(ms.milestone_date);
+    setEditDesc(ms.description || '');
+    setShowEdit(true);
+  };
+
+  const handleEdit = async () => {
+    if (!editTitle.trim() || !editDate) return;
+    setSavingEdit(true);
+    await base44.entities.Milestone.update(milestoneId, { title: editTitle.trim(), milestone_date: editDate, description: editDesc || undefined });
+    queryClient.invalidateQueries({ queryKey: ['milestones'] });
+    setShowEdit(false);
+    setSavingEdit(false);
+    setToast('Milestone updated.');
+  };
+
   const handleWriteReflection = () => {
     const prompt = `It has been ${years} years since ${ms.title}. What does this mean to you now?`;
     router.push(createPageUrl('CreateEntry') + `?prompt=${encodeURIComponent(prompt)}`);
@@ -49,7 +74,7 @@ function MilestoneDetailContent() {
       <div className="flex items-center justify-between px-4 pt-12 pb-4">
         <button onClick={() => router.back()} className="text-gray-400"><ChevronLeft className="w-6 h-6" /></button>
         <div className="flex items-center gap-3">
-          <button className="text-gray-400"><Pencil className="w-4 h-4" /></button>
+          <button onClick={openEdit} className="text-gray-400"><Pencil className="w-4 h-4" /></button>
           <button onClick={() => setShowDelete(true)} className="text-gray-400"><Trash2 className="w-4 h-4" /></button>
         </div>
       </div>
@@ -79,6 +104,27 @@ function MilestoneDetailContent() {
           Write a reflection
         </Button>
       </div>
+
+      <BottomSheet open={showEdit} onClose={() => setShowEdit(false)} title="Edit milestone">
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Name</label>
+            <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="bg-[#F5F5F5] border-0 rounded-xl h-11 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Date</label>
+            <Input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="bg-[#F5F5F5] border-0 rounded-xl h-11 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Notes (optional)</label>
+            <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3} className="bg-[#F5F5F5] border-0 rounded-xl text-sm resize-none" />
+          </div>
+          <Button onClick={handleEdit} disabled={!editTitle.trim() || !editDate || savingEdit}
+            className="w-full bg-[#111111] text-white hover:bg-[#333] rounded-full h-11 text-sm font-medium disabled:opacity-40">
+            {savingEdit ? 'Saving…' : 'Save changes'}
+          </Button>
+        </div>
+      </BottomSheet>
 
       <AlertDialog open={showDelete} onOpenChange={setShowDelete}>
         <AlertDialogContent>

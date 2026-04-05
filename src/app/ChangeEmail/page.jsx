@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import Toast from '@/components/lifescribe/Toast';
 import { auth } from '@/lib/firebase';
+import { verifyBeforeUpdateEmail, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 
 export default function ChangeEmail() {
   const router = useRouter();
@@ -14,6 +15,31 @@ export default function ChangeEmail() {
   const [newEmail, setNewEmail] = useState('');
   const [toast, setToast] = useState('');
   const [currentEmail, setCurrentEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!currentPassword || !newEmail) return;
+    setSaving(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) { setToast('Not signed in.'); setSaving(false); return; }
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await verifyBeforeUpdateEmail(user, newEmail);
+      setToast(`Verification email sent to ${newEmail}. Click the link to confirm.`);
+      setCurrentPassword('');
+      setNewEmail('');
+    } catch (err) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setToast('Current password is incorrect.');
+      } else if (err.code === 'auth/invalid-email') {
+        setToast('Invalid email address.');
+      } else {
+        setToast(err.message || 'Failed to update email.');
+      }
+    }
+    setSaving(false);
+  };
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
@@ -43,8 +69,10 @@ export default function ChangeEmail() {
           <Label className="text-xs font-medium text-gray-500 mb-1.5 block">New Email</Label>
           <Input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="new@email.com" className="bg-[#F5F5F5] border-0 h-12 rounded-xl text-[#111111] placeholder:text-gray-300" />
         </div>
-        <Button onClick={() => setToast('Email updated.')} disabled={!currentPassword || !newEmail}
-          className="w-full bg-[#111111] text-white hover:bg-[#333] rounded-full h-12 text-sm font-medium disabled:opacity-40">Save</Button>
+        <Button onClick={handleSave} disabled={!currentPassword || !newEmail || saving}
+          className="w-full bg-[#111111] text-white hover:bg-[#333] rounded-full h-12 text-sm font-medium disabled:opacity-40">
+          {saving ? 'Sending…' : 'Update email'}
+        </Button>
       </div>
       <Toast message={toast} show={!!toast} onClose={() => setToast('')} />
     </div>

@@ -21,6 +21,7 @@ async function polishWithGemini(rawText) {
 export default function VoiceInput({ onTranscript, className = '' }) {
   const [state, setState] = useState('idle'); // 'idle' | 'recording' | 'processing'
   const [error, setError] = useState('');
+  const [showAiLabel, setShowAiLabel] = useState(false);
   const recognitionRef = useRef(null);
   const accumulatedRef = useRef('');
 
@@ -68,6 +69,8 @@ export default function VoiceInput({ onTranscript, className = '' }) {
       const polished = await polishWithGemini(raw);
       onTranscript?.(polished);
       setState('idle');
+      setShowAiLabel(true);
+      setTimeout(() => setShowAiLabel(false), 4000);
     };
 
     recognition.start();
@@ -131,6 +134,11 @@ export default function VoiceInput({ onTranscript, className = '' }) {
       {error && (
         <span className="absolute -bottom-5 text-[10px] text-red-500 whitespace-nowrap">
           {error}
+        </span>
+      )}
+      {showAiLabel && (
+        <span className="absolute -bottom-5 text-[10px] text-amber-500 font-medium whitespace-nowrap">
+          AI suggestion · please verify
         </span>
       )}
     </div>

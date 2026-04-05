@@ -14,6 +14,11 @@ export const MOOD_COLORS = {
   angry: '#FF6347',
   very_glad: '#3CB371',
   upset: '#CD5C5C',
+  grateful: '#F0E68C',
+  nostalgic: '#DEB887',
+  playful: '#FF69B4',
+  reflective: '#778899',
+  peaceful: '#98FB98',
 };
 
 export const DEFAULT_MOOD_COLOR = '#E0E0E0';
@@ -33,18 +38,28 @@ export const MOOD_OPTIONS = [
   { value: 'motivated', label: 'Motivated', emoji: '💪' },
   { value: 'loving', label: 'Loving', emoji: '🥰' },
   { value: 'upset', label: 'Upset', emoji: '😤' },
+  { value: 'grateful', label: 'Grateful', emoji: '🙏' },
+  { value: 'nostalgic', label: 'Nostalgic', emoji: '🌅' },
+  { value: 'playful', label: 'Playful', emoji: '🎈' },
+  { value: 'reflective', label: 'Reflective', emoji: '🪞' },
+  { value: 'peaceful', label: 'Peaceful', emoji: '☮️' },
 ];
 
 export const SLEEP_OPTIONS = [
+  { value: 'great', label: 'Great', emoji: '✨' },
   { value: 'energised', label: 'Energised', emoji: '🌟' },
   { value: 'well_rested', label: 'Well Rested', emoji: '😴' },
+  { value: 'good', label: 'Good', emoji: '👍' },
   { value: 'rested', label: 'Rested', emoji: '💤' },
   { value: 'tired', label: 'Tired', emoji: '😪' },
+  { value: 'poor', label: 'Poor', emoji: '😩' },
   { value: 'no_sleep', label: 'No Sleep', emoji: '😵' },
 ];
 
 export const MOTIVATION_OPTIONS = [
+  { value: 'very_high', label: 'Very High', emoji: '🔥' },
   { value: 'very_motivated', label: 'Very Motivated', emoji: '🚀' },
+  { value: 'high', label: 'High', emoji: '⚡' },
   { value: 'motivated', label: 'Motivated', emoji: '✅' },
   { value: 'average', label: 'Average', emoji: '😐' },
   { value: 'not_motivated', label: 'Not Motivated', emoji: '😑' },

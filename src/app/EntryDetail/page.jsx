@@ -8,7 +8,8 @@ import { format } from 'date-fns';
 import PillBadge from '@/components/lifescribe/PillBadge';
 import Toast from '@/components/lifescribe/Toast';
 import { getMoodLabel, getSleepLabel, getMotivationLabel } from '@/components/lifescribe/constants';
-import { ChevronLeft, Trash2, Pencil, Lock, Users, Globe } from 'lucide-react';
+import { ChevronLeft, Trash2, Pencil, Lock, Unlock, Users, Globe, Share2, Check, MapPin } from 'lucide-react';
+import BottomSheet from '@/components/lifescribe/BottomSheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 function EntryDetailContent() {
@@ -19,12 +20,15 @@ function EntryDetailContent() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [toast, setToast] = useState('');
+  const [showShareSheet, setShowShareSheet] = useState(false);
+  const [sharedCircleIds, setSharedCircleIds] = useState([]);
+  const [sharing, setSharing] = useState(false);
 
   const { data: entry } = useQuery({
     queryKey: ['entry', entryId],
     queryFn: async () => {
       const entries = await base44.entities.JournalEntry.list();
-      return entries.find(e => e.id === entryId);
+      return entries.find(e => e.id === entryId && !e.is_deleted);
     },
     enabled: !!entryId,
   });
@@ -32,6 +36,11 @@ function EntryDetailContent() {
   const { data: chapters = [] } = useQuery({
     queryKey: ['chapters'],
     queryFn: () => base44.entities.Chapter.list(),
+  });
+
+  const { data: circles = [] } = useQuery({
+    queryKey: ['circles'],
+    queryFn: () => base44.entities.Circle.list(),
   });
 
   if (!entry) {
@@ -44,8 +53,17 @@ function EntryDetailContent() {
   const charCount = entry.content?.length || 0;
   const AudienceIcon = entry.audience === 'private' ? Lock : entry.audience === 'connections' ? Users : Globe;
 
+  const handleShareToCircle = async () => {
+    if (!sharedCircleIds.length) return;
+    setSharing(true);
+    await base44.entities.JournalEntry.update(entryId, { shared_circle_ids: sharedCircleIds });
+    setSharing(false);
+    setShowShareSheet(false);
+    setToast('Entry shared to selected circles.');
+  };
+
   const handleDelete = async () => {
-    await base44.entities.JournalEntry.delete(entryId);
+    await base44.entities.JournalEntry.update(entryId, { is_deleted: true });
     queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
     setToast('Entry deleted.');
     setTimeout(() => router.push(createPageUrl('Home')), 1000);
@@ -56,6 +74,7 @@ function EntryDetailContent() {
       <div className="flex items-center justify-between px-4 pt-12 pb-3 sticky top-0 bg-white z-10">
         <button onClick={() => router.back()} className="text-gray-400"><ChevronLeft className="w-6 h-6" /></button>
         <div className="flex items-center gap-3">
+          <button onClick={() => setShowShareSheet(true)} className="text-gray-400 hover:text-gray-600"><Share2 className="w-4 h-4" /></button>
           <button onClick={() => router.push(createPageUrl('CreateEntry') + `?edit=${entryId}`)} className="text-gray-400 hover:text-gray-600"><Pencil className="w-4 h-4" /></button>
           <button onClick={() => setShowDeleteConfirm(true)} className="text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
         </div>
@@ -70,13 +89,37 @@ function EntryDetailContent() {
           {entry.motivation && <PillBadge text={getMotivationLabel(entry.motivation)} />}
         </div>
         <p className="text-base text-[#111111] leading-relaxed whitespace-pre-wrap mb-6">{entry.content}</p>
-        {entry.media_urls?.length > 0 && (
-          <div className="grid grid-cols-2 gap-2 mb-6">
-            {entry.media_urls.map((url, i) => (
-              <div key={i} className="rounded-xl overflow-hidden bg-gray-100 aspect-square">
-                <img src={url} alt="" className="w-full h-full object-cover" />
-              </div>
+        {entry.tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-6">
+            {entry.tags.map(t => (
+              <span key={t} className="text-xs bg-[#F5F5F5] text-gray-500 rounded-full px-2.5 py-1">#{t}</span>
             ))}
+          </div>
+        )}
+        {entry.media_urls?.length > 0 && (
+          <div className={`gap-2 mb-6 ${entry.media_urls.length === 1 ? '' : 'grid grid-cols-2'}`}>
+            {entry.media_urls.map((url, i) => {
+              const type = entry.media_types?.[i] || 'image';
+              if (type === 'video') {
+                return (
+                  <div key={i} className="rounded-xl overflow-hidden bg-gray-100">
+                    <video src={url} controls className="w-full max-h-72 object-contain" />
+                  </div>
+                );
+              }
+              if (type === 'audio') {
+                return (
+                  <div key={i} className="col-span-2 rounded-xl bg-gray-50 p-3">
+                    <audio src={url} controls className="w-full" />
+                  </div>
+                );
+              }
+              return (
+                <div key={i} className="rounded-xl overflow-hidden bg-gray-100 aspect-square">
+                  <img src={url} alt="" className="w-full h-full object-cover" />
+                </div>
+              );
+            })}
           </div>
         )}
         <div className="border-t border-gray-50 pt-4 space-y-2">
@@ -84,10 +127,44 @@ function EntryDetailContent() {
             <AudienceIcon className="w-3.5 h-3.5" />
             <span className="capitalize">{entry.audience || 'Private'}</span>
           </div>
+          {entry.deliver_after_death && (
+            <div className="flex items-center gap-2 text-xs text-purple-500">
+              <Lock className="w-3.5 h-3.5" />
+              <span>Deliver after death</span>
+            </div>
+          )}
           <p className="text-xs text-gray-300">{wordCount} words · {charCount} characters</p>
-          {entry.location && <p className="text-xs text-gray-300">📍 {entry.location}</p>}
+          {entry.location && (
+            <div className="flex items-center gap-2 text-xs text-green-600">
+              <MapPin className="w-3.5 h-3.5" />
+              <span>{entry.location}</span>
+            </div>
+          )}
         </div>
       </div>
+
+      <BottomSheet open={showShareSheet} onClose={() => setShowShareSheet(false)} title="Share entry to circles">
+        <div className="space-y-2 mb-4">
+          {circles.length === 0 && <p className="text-sm text-gray-400">No circles yet. Create one first.</p>}
+          {circles.map(circle => {
+            const selected = sharedCircleIds.includes(circle.id);
+            return (
+              <button key={circle.id}
+                onClick={() => setSharedCircleIds(prev => selected ? prev.filter(id => id !== circle.id) : [...prev, circle.id])}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-colors ${
+                  selected ? 'border-[#1A1A2E] bg-[#1A1A2E]/5' : 'border-gray-100 hover:bg-gray-50'
+                }`}>
+                <span className="flex-1 text-sm text-left text-[#111111]">{circle.name}</span>
+                {selected && <Check className="w-4 h-4 text-[#1A1A2E]" />}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={handleShareToCircle} disabled={!sharedCircleIds.length || sharing}
+          className="w-full bg-[#111111] text-white rounded-full h-11 text-sm font-medium disabled:opacity-40">
+          {sharing ? 'Sharing…' : `Share to ${sharedCircleIds.length} circle${sharedCircleIds.length !== 1 ? 's' : ''}`}
+        </button>
+      </BottomSheet>
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>

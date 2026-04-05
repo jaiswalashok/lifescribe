@@ -21,6 +21,8 @@ export default function AddTrustee() {
   const [canPassOn, setCanPassOn] = useState(true);
   const [deliveryTrigger, setDeliveryTrigger] = useState('on_death');
   const [deliveryDetail, setDeliveryDetail] = useState('');
+  const [customMilestone, setCustomMilestone] = useState('');
+  const [deliveryMessage, setDeliveryMessage] = useState('');
   const [searchQ, setSearchQ] = useState('');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
@@ -34,6 +36,13 @@ export default function AddTrustee() {
   const handleSave = async () => {
     if (!selectedConn) return;
     setSaving(true);
+    const user = await base44.auth.me();
+    const inviterName = user?.full_name || user?.email || 'Someone';
+
+    const resolvedDetail = deliveryTrigger === 'milestone' && deliveryDetail === '__custom__'
+      ? customMilestone
+      : deliveryDetail;
+
     await base44.entities.LifeTrustee.create({
       trustee_user_id: selectedConn.connected_user_id || selectedConn.id,
       trustee_name: selectedConn.connected_user_name,
@@ -43,8 +52,34 @@ export default function AddTrustee() {
       chapter_ids: permissionsType !== 'full' ? selectedChapterIds : undefined,
       can_pass_on: canPassOn,
       delivery_trigger: deliveryTrigger,
-      delivery_detail: deliveryDetail || undefined,
+      delivery_detail: resolvedDetail || undefined,
+      delivery_message: deliveryMessage || undefined,
     });
+
+    // Create in-app notification
+    await base44.entities.Notification.create({
+      notification_type: 'trustee_designated',
+      title: `${selectedConn.connected_user_name} has been designated as your LifeTrustee`,
+      message: `They will receive your vault ${deliveryTrigger === 'on_death' ? 'upon your passing' : 'as configured'}.`,
+      is_read: false,
+    });
+
+    // Send email notification if the connection has an email invite on record
+    if (selectedConn.invite_email) {
+      try {
+        await fetch('/api/send-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: selectedConn.invite_email,
+            inviterName,
+            inviteLink: `${window.location.origin}/Home`,
+            type: 'trustee',
+          }),
+        });
+      } catch {}
+    }
+
     queryClient.invalidateQueries({ queryKey: ['life_trustees'] });
     setToast('Trustee saved.');
     setTimeout(() => router.push(createPageUrl('MemorialSettings')), 1200);
@@ -137,15 +172,33 @@ export default function AddTrustee() {
               <div className="mb-6">
                 <Label className="text-xs font-medium text-gray-500 mb-2 block">Select milestone</Label>
                 <div className="space-y-1">
-                  {['Their 18th birthday', 'Their wedding day', 'One year after my death'].map(opt => (
+                  {['Their 18th birthday', 'Their wedding day', 'One year after my death', '__custom__'].map(opt => (
                     <button key={opt} onClick={() => setDeliveryDetail(opt)}
                       className={`w-full p-3 rounded-xl text-left text-sm transition-all ${deliveryDetail === opt ? 'bg-[#1A1A2E] text-white' : 'bg-[#F5F5F5] text-[#111111]'}`}>
-                      {opt}
+                      {opt === '__custom__' ? 'Custom condition…' : opt}
                     </button>
                   ))}
                 </div>
+                {deliveryDetail === '__custom__' && (
+                  <Input
+                    value={customMilestone}
+                    onChange={e => setCustomMilestone(e.target.value)}
+                    placeholder="e.g. When they graduate university"
+                    className="bg-[#F5F5F5] border-0 h-12 rounded-xl text-[#111111] text-sm mt-2"
+                  />
+                )}
               </div>
             )}
+            <div className="mb-6">
+              <Label className="text-xs font-medium text-gray-500 mb-1.5 block">Personal message <span className="text-gray-300">(optional)</span></Label>
+              <textarea
+                value={deliveryMessage}
+                onChange={e => setDeliveryMessage(e.target.value)}
+                placeholder="Write a personal note to be delivered alongside your vault…"
+                rows={4}
+                className="w-full bg-[#F5F5F5] border-0 rounded-xl text-sm text-[#111111] placeholder:text-gray-300 p-3 resize-none focus:outline-none focus:ring-1 focus:ring-[#1A1A2E]"
+              />
+            </div>
             <Button onClick={handleSave} disabled={saving} className="w-full bg-[#111111] text-white hover:bg-[#333] rounded-full h-12 text-base font-medium disabled:opacity-40">
               {saving ? 'Saving...' : 'Save trustee'}
             </Button>

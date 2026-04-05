@@ -1,6 +1,6 @@
 'use client';
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createPageUrl } from '@/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
-export default function CreateAccount() {
+function CreateAccountContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPage = searchParams.get('next') || '';
+  const nextToken = searchParams.get('token') || '';
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -48,14 +51,24 @@ export default function CreateAccount() {
       return;
     }
     setLoading(true);
+    const getRedirectUrl = () => {
+      if (nextPage) {
+        let url = createPageUrl(nextPage);
+        if (nextToken) url += `?token=${nextToken}`;
+        return url;
+      }
+      return createPageUrl('Home');
+    };
     try {
       if (mode === 'signup') {
         await base44.auth.registerWithEmail(form.email, form.password);
         localStorage.setItem('lifescribe_signup', JSON.stringify(form));
-        router.push(createPageUrl('EmailVerify') + `?email=${encodeURIComponent(form.email)}`);
+        const verifyUrl = createPageUrl('EmailVerify') + `?email=${encodeURIComponent(form.email)}`
+          + (nextPage ? `&next=${nextPage}${nextToken ? `&token=${nextToken}` : ''}` : '');
+        router.push(verifyUrl);
       } else {
         await base44.auth.loginWithEmail(form.email, form.password);
-        router.push(createPageUrl('Home'));
+        router.push(getRedirectUrl());
       }
     } catch (err) {
       setError(formatFirebaseError(err));
@@ -67,7 +80,13 @@ export default function CreateAccount() {
     setError('');
     try {
       await base44.auth.loginWithGoogle();
-      router.push(createPageUrl('Home'));
+      if (nextPage) {
+        let url = createPageUrl(nextPage);
+        if (nextToken) url += `?token=${nextToken}`;
+        router.push(url);
+      } else {
+        router.push(createPageUrl('Home'));
+      }
     } catch (err) {
       setError(err.message || 'Google sign-in failed');
     }
@@ -128,6 +147,17 @@ export default function CreateAccount() {
             </button>
           </div>
           {mode === 'signup' && <p className="text-xs text-gray-400 mt-1.5 px-1">Must be at least 6 characters</p>}
+          {mode === 'signin' && (
+            <div className="flex justify-end mt-1.5">
+              <button
+                type="button"
+                onClick={() => router.push(createPageUrl('ForgotPassword'))}
+                className="text-xs text-gray-400 hover:text-[#1A1A2E] underline transition-colors"
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -167,5 +197,13 @@ export default function CreateAccount() {
         </button>
       </p>
     </div>
+  );
+}
+
+export default function CreateAccount() {
+  return (
+    <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div></div>}>
+      <CreateAccountContent />
+    </Suspense>
   );
 }

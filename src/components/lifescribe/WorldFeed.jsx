@@ -2,91 +2,49 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { listFeedEntries, listAllProfiles } from '@/lib/entities';
 import MoodRingAvatar from './MoodRingAvatar';
 import { getMoodLabel } from './constants';
-import { MapPin, Briefcase, Image as ImageIcon, MessageCircle, Globe } from 'lucide-react';
+import { MapPin, Briefcase, Image as ImageIcon, MessageCircle, Globe, Images } from 'lucide-react';
 import PostComments from './PostComments';
 import { format } from 'date-fns';
-
-const MOCK_WORLD_FEED = [
-  {
-    id: 'wf1',
-    author: 'Jane Chia',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop',
-    mood: 'loving',
-    date: 'Mar 2',
-    content: 'Spent the afternoon baking. The house smells like cinnamon and nostalgia. Some days are just perfectly ordinary, and that\'s enough.',
-    image: 'https://images.unsplash.com/photo-1495147466023-ac5c588e2e94?w=600&h=400&fit=crop',
-    type: 'entry',
-  },
-  {
-    id: 'wf2',
-    author: 'Farid Azman',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop',
-    mood: 'energised',
-    date: 'Mar 1',
-    content: 'Just landed in Tokyo. First time here. The city is overwhelming in the best way possible.',
-    image: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600&h=400&fit=crop',
-    type: 'entry',
-  },
-  {
-    id: 'wf3',
-    author: 'Nurul Hashim',
-    avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop',
-    mood: 'happy',
-    date: 'Feb 28',
-    content: 'Baked a whole spread for Eid preparation. The kitchen was chaos but the best kind. Ridhwan kept sneaking cookies.',
-    image: 'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=600&h=400&fit=crop',
-    type: 'entry',
-  },
-  {
-    id: 'wf4',
-    author: 'Daniel Tan',
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop',
-    mood: 'motivated',
-    date: 'Feb 27',
-    content: 'Hit a new personal record at the gym today. 18 months of consistency finally showing. If you told me a year ago I\'d be here, I wouldn\'t have believed you.',
-    type: 'entry',
-  },
-  {
-    id: 'wf5',
-    author: 'Zara Malik',
-    avatar: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=200&h=200&fit=crop',
-    mood: 'calm',
-    date: 'Feb 26',
-    content: 'Read an entire book in one sitting. It rained all day. Sometimes the universe just aligns perfectly.',
-    image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&h=400&fit=crop',
-    type: 'entry',
-  },
-];
+import { useRouter } from 'next/navigation';
+import { createPageUrl } from '@/utils';
 
 export default function WorldFeed({ connections, currentUser }) {
+  const router = useRouter();
   const [openComments, setOpenComments] = useState(null);
 
-  // Fetch all journal entries
-  const { data: allEntries = [], isLoading } = useQuery({
-    queryKey: ['world_feed_entries'],
-    queryFn: () => base44.entities.JournalEntry.list('-created_date', 100),
-  });
-
-  // Fetch all user profiles to map user_id to profile data
-  const { data: allProfiles = [] } = useQuery({
-    queryKey: ['all_user_profiles'],
-    queryFn: () => base44.entities.UserProfile.list(),
-  });
-
-  // Get connected user IDs
   const connectedUserIds = connections.map(c => c.connected_user_id);
 
-  // Filter entries: show user's own entries (all) OR public/connections entries from connections
-  const worldEntries = allEntries.filter(entry => {
-    const isOwnEntry = entry.user_id === currentUser?.user_id;
-    const isFromConnection = connectedUserIds.includes(entry.user_id);
-    const isPublicOrConnections = entry.audience === 'public' || entry.audience === 'connections';
-    
-    // Show own entries (all audiences) OR connection entries (public/connections only)
-    return isOwnEntry || (isFromConnection && isPublicOrConnections);
+  // Fetch feed entries using the optimized helper
+  const { data: worldEntries = [], isLoading } = useQuery({
+    queryKey: ['world_feed_entries', connectedUserIds.join(',')],
+    queryFn: () => listFeedEntries(connectedUserIds),
   });
+
+  // Fetch all user profiles to enrich entries with author info
+  const { data: allProfiles = [] } = useQuery({
+    queryKey: ['all_user_profiles'],
+    queryFn: () => listAllProfiles(),
+  });
+
+  // Fetch user's own circles for capsule visibility
+  const { data: myCircles = [] } = useQuery({
+    queryKey: ['circles'],
+    queryFn: () => base44.entities.Circle.list(),
+  });
+
+  // Fetch all capsules to surface ones shared to my circles
+  const { data: allCapsules = [] } = useQuery({
+    queryKey: ['moment_capsules'],
+    queryFn: () => base44.entities.MomentCapsule.list(),
+  });
+
+  const myCircleIds = myCircles.map(c => c.id);
+  const sharedCapsules = allCapsules.filter(cap =>
+    cap.circle_ids?.some(id => myCircleIds.includes(id))
+  );
 
   // Enrich entries with profile data
   const enrichedEntries = worldEntries.map(entry => {
@@ -96,17 +54,23 @@ export default function WorldFeed({ connections, currentUser }) {
       authorName: profile?.full_name || profile?.username || 'Unknown',
       authorAvatar: profile?.profile_picture_url,
       authorMood: profile?.current_mood,
+      authorUsername: profile?.username,
     };
   });
 
-  // Combine mock data with real entries for a richer feed
+  // Combine real entries + shared capsules
+  const capsuleFeedItems = sharedCapsules.map(cap => ({
+    ...cap,
+    isCapsule: true,
+    created_date: cap.created_date || cap.event_date,
+  }));
+
   const combinedFeed = [
-    ...MOCK_WORLD_FEED.map(mock => ({ ...mock, isMock: true })),
     ...enrichedEntries,
+    ...capsuleFeedItems,
   ].sort((a, b) => {
-    // Sort by date, newest first
-    const dateA = a.created_date ? new Date(a.created_date) : new Date(a.date || 0);
-    const dateB = b.created_date ? new Date(b.created_date) : new Date(b.date || 0);
+    const dateA = a.created_date ? new Date(a.created_date) : new Date(0);
+    const dateB = b.created_date ? new Date(b.created_date) : new Date(0);
     return dateB - dateA;
   });
 
@@ -118,25 +82,60 @@ export default function WorldFeed({ connections, currentUser }) {
     );
   }
 
+  if (combinedFeed.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <Globe className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+        <p className="text-sm text-gray-400 mb-1">Your world is quiet</p>
+        <p className="text-xs text-gray-300">Connect with people to see their stories here.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
-      {combinedFeed.map(item => (
+      {combinedFeed.map(item => item.isCapsule ? (
+        <button
+          key={item.id}
+          onClick={() => router.push(createPageUrl('CapsuleDetail') + `?id=${item.id}`)}
+          className="w-full bg-gradient-to-br from-[#1A1A2E] to-[#2a2a4e] rounded-xl overflow-hidden text-left"
+        >
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Images className="w-4 h-4 text-purple-300" />
+              <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">Moment Capsule</span>
+            </div>
+            <p className="text-base font-bold text-white mb-1">{item.title}</p>
+            {item.event_date && (
+              <p className="text-xs text-white/50">{format(new Date(item.event_date), 'MMMM d, yyyy')}</p>
+            )}
+            {item.description && (
+              <p className="text-sm text-white/70 mt-2 leading-relaxed line-clamp-2">{item.description}</p>
+            )}
+          </div>
+        </button>
+      ) : (
         <div key={item.id} className="bg-white rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] overflow-hidden">
           <div className="p-4">
             <div className="flex items-start gap-3">
-              <MoodRingAvatar 
-                src={item.isMock ? item.avatar : item.authorAvatar} 
-                mood={item.isMock ? item.mood : item.authorMood} 
-                size={40} 
-                name={item.isMock ? item.author : item.authorName} 
-              />
+              <button onClick={() => item.authorUsername && router.push(`/${item.authorUsername}`)}>
+                <MoodRingAvatar
+                  src={item.authorAvatar}
+                  mood={item.authorMood}
+                  size={40}
+                  name={item.authorName}
+                />
+              </button>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-semibold text-[#111111]">
-                    {item.isMock ? item.author : item.authorName}
-                  </span>
+                  <button
+                    onClick={() => item.authorUsername && router.push(`/${item.authorUsername}`)}
+                    className="text-sm font-semibold text-[#111111] hover:underline"
+                  >
+                    {item.authorName}
+                  </button>
                   <span className="text-xs text-gray-300">
-                    {item.isMock ? item.date : (item.created_date ? format(new Date(item.created_date), 'MMM d') : '')}
+                    {item.created_date ? format(new Date(item.created_date), 'MMM d') : ''}
                   </span>
                 </div>
                 {item.mood && (
@@ -148,20 +147,29 @@ export default function WorldFeed({ connections, currentUser }) {
               </div>
             </div>
           </div>
-          {/* Mock data images */}
-          {item.isMock && item.image && (
-            <img src={item.image} alt="" className="w-full h-48 object-cover" />
-          )}
-          {/* Real entry media */}
-          {!item.isMock && item.media_urls && item.media_urls.length > 0 && (
+          {/* Entry media */}
+          {item.media_urls && item.media_urls.length > 0 && (
             <div className={item.media_urls.length === 1 ? '' : 'grid grid-cols-2 gap-0.5'}>
               {item.media_urls.slice(0, 4).map((url, i) => (
                 item.media_types?.[i] === 'video' ? (
                   <video key={i} src={url} className="w-full h-48 object-cover" controls />
+                ) : item.media_types?.[i] === 'audio' ? (
+                  <div key={i} className="px-4 py-2 bg-gray-50">
+                    <audio src={url} controls className="w-full" />
+                  </div>
                 ) : (
                   <img key={i} src={url} alt="" className="w-full h-48 object-cover" />
                 )
               ))}
+            </div>
+          )}
+          {/* Location pill */}
+          {item.location && (
+            <div className="px-4 pt-1">
+              <span className="inline-flex items-center gap-1 text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                <MapPin className="w-2.5 h-2.5" />
+                {item.location}
+              </span>
             </div>
           )}
           {/* Comment toggle */}

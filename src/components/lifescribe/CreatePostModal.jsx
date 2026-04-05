@@ -3,7 +3,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { createPageUrl } from '@/utils';
-import { BookOpen, Gift, X } from 'lucide-react';
+import { BookOpen, Gift, X, Sparkles } from 'lucide-react';
 
 export default function CreatePostModal({ open, onClose }) {
   const router = useRouter();
@@ -45,6 +45,19 @@ export default function CreatePostModal({ open, onClose }) {
               <div>
                 <p className="text-sm font-semibold text-[#111111]">Diary Entry</p>
                 <p className="text-xs text-gray-400 mt-0.5">Write a private or shared journal entry for yourself</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => { onClose(); router.push(createPageUrl('JournalInterview')); }}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#F5F5F5] hover:bg-gray-100 transition-all text-left"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-[#111111]">AI Journal Interview</p>
+                <p className="text-xs text-gray-400 mt-0.5">Answer a few questions and AI shapes it into an entry</p>
               </div>
             </button>
 

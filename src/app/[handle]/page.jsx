@@ -113,8 +113,10 @@ function PostComposer({ currentUser, profile, onPosted }) {
       media_urls: uploaded_urls,
       media_types: uploaded_types,
       audience,
+      is_deleted: false,
       entry_date: new Date().toISOString().split('T')[0],
       created_date: new Date().toISOString(),
+      updated_date: new Date().toISOString(),
     });
     setText('');
     setMediaItems([]);
@@ -338,48 +340,46 @@ export default function HandlePage() {
       let allFeedPosts = [];
 
       // 1. Get profile owner's posts
-      let ownerQuery;
+      // For unauthenticated or non-owner/non-connected users, query ONLY public entries
+      // This is required because Firestore rules reject queries that MIGHT return docs
+      // the user can't access. For owner/connected, query all then filter client-side.
+      let ownerPosts = [];
       if (owner) {
-        // Owner sees all their own posts
-        ownerQuery = query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id), orderBy('created_date', 'desc'));
-      } else if (connected) {
-        // Connected users see public + connections posts
-        ownerQuery = query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id), orderBy('created_date', 'desc'));
+        // Owner: fetch all their own entries (rules allow user_id match)
+        const snap = await getDocs(query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id)));
+        ownerPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      } else if (currentUser && connected) {
+        // Connected user: fetch all by user_id, filter client-side
+        const snap = await getDocs(query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id)));
+        ownerPosts = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.audience !== 'private');
       } else {
-        // Public visitors see only public posts
-        ownerQuery = query(collection(db, 'journal_entries'), where('user_id', '==', profile.user_id), where('audience', '==', 'public'), orderBy('created_date', 'desc'));
+        // Public / not logged in: query ONLY by audience to avoid composite index requirement
+        // Then filter by user_id client-side
+        const snap = await getDocs(query(collection(db, 'journal_entries'), where('audience', '==', 'public')));
+        ownerPosts = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.user_id === profile.user_id);
       }
 
-      const ownerSnap = await getDocs(ownerQuery);
-      const ownerPosts = ownerSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      
-      // Filter owner posts based on audience
-      const filteredOwnerPosts = owner ? ownerPosts : connected
-        ? ownerPosts.filter(p => p.audience !== 'private')
-        : ownerPosts;
+      const filteredOwnerPosts = ownerPosts.filter(p => !p.is_deleted);
 
       allFeedPosts.push(...filteredOwnerPosts);
 
-      // 2. Get connections' posts (for owner viewing their own profile OR current user viewing)
-      // This makes the profile feed work like "My World" - showing connections' content
-      const viewerUserId = currentUser?.uid;
-      if (viewerUserId) {
-        // Get viewer's connections (not profile owner's connections)
-        const connectionsSnap = await getDocs(query(collection(db, 'connections'), where('user_id', '==', viewerUserId)));
+      // 2. If owner is viewing their own profile, also show connections' public posts
+      if (owner && currentUser?.uid) {
+        const connectionsSnap = await getDocs(query(collection(db, 'connections'), where('user_id', '==', currentUser.uid)));
         const connectionUserIds = connectionsSnap.docs.map(d => d.data().connected_user_id);
 
         if (connectionUserIds.length > 0) {
-          // Fetch posts from viewer's connections (public + connections audience)
           const connectionPostsSnap = await getDocs(query(
             collection(db, 'journal_entries'),
             orderBy('created_date', 'desc')
           ));
-          
+
           const connectionPosts = connectionPostsSnap.docs
             .map(d => ({ id: d.id, ...d.data() }))
-            .filter(p => 
-              connectionUserIds.includes(p.user_id) && 
-              p.user_id !== profile.user_id && // Don't duplicate profile owner's posts
+            .filter(p =>
+              connectionUserIds.includes(p.user_id) &&
+              p.user_id !== profile.user_id &&
+              !p.is_deleted &&
               (p.audience === 'public' || p.audience === 'connections')
             );
 

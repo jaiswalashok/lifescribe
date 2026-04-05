@@ -1,8 +1,8 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createPageUrl } from '@/utils';
 import BottomTabBar from '@/components/lifescribe/BottomTabBar';
 import JournalEntryCard from '@/components/lifescribe/JournalEntryCard';
@@ -12,14 +12,25 @@ import EmptyState from '@/components/lifescribe/EmptyState';
 import MoodBgWrapper from '@/components/lifescribe/MoodBgWrapper';
 import MoodToggleBar from '@/components/lifescribe/MoodToggleBar';
 import CreatePostModal from '@/components/lifescribe/CreatePostModal';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Search, Bell } from 'lucide-react';
+import Toast from '@/components/lifescribe/Toast';
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('journals');
   const [dismissedPrompt, setDismissedPrompt] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [toast, setToast] = useState('');
+
+  useEffect(() => {
+    if (searchParams.get('alive') === '1') {
+      setToast('Welcome back! Your check-in has been recorded. ✓');
+      // Clean URL without reload
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     const initProfile = async () => {
@@ -69,6 +80,12 @@ export default function Home() {
     queryFn: () => base44.entities.UserProfile.list(),
   });
 
+  const { data: notifications = [] } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => base44.entities.Notification.list('-created_date', 50),
+  });
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
   const profile = profiles[0];
   const currentMood = profile?.current_mood;
 
@@ -94,7 +111,20 @@ export default function Home() {
       <div className="bg-white/80 backdrop-blur-sm px-6 pt-14 pb-4 border-b border-gray-100/50">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-[#1A1A2E]">{displayName === 'Your' ? 'Your' : `${displayName}'s`} Vault</h1>
-          <MoodToggleBar currentMood={currentMood} onMoodChange={handleMoodChange} />
+          <div className="flex items-center gap-2">
+            <button onClick={() => router.push(createPageUrl('Search'))} className="w-9 h-9 flex items-center justify-center rounded-full bg-[#F5F5F5]">
+              <Search className="w-4 h-4 text-[#111111]" />
+            </button>
+            <button onClick={() => router.push(createPageUrl('Notifications'))} className="relative w-9 h-9 flex items-center justify-center rounded-full bg-[#F5F5F5]">
+              <Bell className="w-4 h-4 text-[#111111]" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] font-bold text-white px-0.5">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            <MoodToggleBar currentMood={currentMood} onMoodChange={handleMoodChange} />
+          </div>
         </div>
         <div className="flex gap-0 bg-[#F5F5F5] rounded-full p-1">
           <button
@@ -120,6 +150,8 @@ export default function Home() {
                 lastEntryDate={lastEntryDate}
                 onDismiss={() => setDismissedPrompt(true)}
                 onWrite={handleWritePrompt}
+                userName={profile?.full_name || profile?.username}
+                currentMood={currentMood}
               />
             )}
             {entries.length === 0 && !entriesLoading ? (
@@ -131,7 +163,7 @@ export default function Home() {
               />
             ) : (
               <div className="space-y-3">
-                {entries.map(entry => (
+                {entries.filter(e => !e.is_deleted).map(entry => (
                   <JournalEntryCard
                     key={entry.id}
                     entry={entry}
@@ -150,6 +182,15 @@ export default function Home() {
 
       <BottomTabBar currentPage="Home" onCreatePress={() => setShowCreateModal(true)} />
       <CreatePostModal open={showCreateModal} onClose={() => setShowCreateModal(false)} />
+      <Toast message={toast} show={!!toast} onClose={() => setToast('')} />
     </MoodBgWrapper>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
   );
 }

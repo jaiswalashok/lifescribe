@@ -57,6 +57,12 @@ function TrusteeDetailContent() {
             <p className="text-xs text-gray-400 mb-1">Can pass on</p>
             <p className="text-sm font-medium text-[#111111]">{trustee.can_pass_on ? 'Yes' : 'No'}</p>
           </div>
+          {trustee.delivery_message && (
+            <div className="bg-[#F5F5F5] rounded-xl p-4">
+              <p className="text-xs text-gray-400 mb-1">Personal message</p>
+              <p className="text-sm text-[#111111] leading-relaxed">{trustee.delivery_message}</p>
+            </div>
+          )}
         </div>
         <Button onClick={() => setShowDelete(true)} variant="outline" className="w-full rounded-full h-12 text-sm border-red-200 text-red-500 hover:bg-red-50">
           <Trash2 className="w-4 h-4 mr-2" /> Remove trustee

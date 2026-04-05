@@ -6,19 +6,23 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-export default function AddFriendsSheet({ open, onClose, circleId, onAdded }) {
+export default function AddFriendsSheet({ open, onClose, circleId, onAdded, isFamily }) {
   const [step, setStep] = useState('details'); // 'details' | 'link'
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   const [copied, setCopied] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const reset = () => {
     setStep('details');
     setName('');
+    setEmail('');
     setSaving(false);
     setInviteLink('');
     setCopied(false);
+    setEmailSent(false);
   };
 
   const handleClose = () => {
@@ -47,6 +51,23 @@ export default function AddFriendsSheet({ open, onClose, circleId, onAdded }) {
     const baseUrl = window.location.origin;
     const link = `${baseUrl}/friend-invite?token=${inviteToken}`;
     setInviteLink(link);
+
+    // Send email invite via Resend if email provided
+    if (email.trim()) {
+      try {
+        await fetch('/api/send-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: email.trim(),
+            inviterName: user.full_name || user.email,
+            inviteLink: link,
+            type: isFamily ? 'family' : 'friend',
+          }),
+        });
+        setEmailSent(true);
+      } catch {}
+    }
 
     setSaving(false);
     setStep('link');
@@ -84,7 +105,7 @@ export default function AddFriendsSheet({ open, onClose, circleId, onAdded }) {
           {/* Header */}
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-base font-semibold text-[#111111]">
-              {step === 'link' ? 'Invite sent!' : 'Invite a friend'}
+              {step === 'link' ? 'Invite sent!' : isFamily ? 'Invite family member' : 'Invite a friend'}
             </h2>
             <button onClick={handleClose} className="text-gray-400">
               <X className="w-5 h-5" />
@@ -97,6 +118,7 @@ export default function AddFriendsSheet({ open, onClose, circleId, onAdded }) {
               <p className="text-sm text-gray-500 mb-3">
                 <span className="font-medium text-[#111111]">{name}</span> has been invited.
               </p>
+              {emailSent && <p className="text-xs text-green-600 mb-2">✓ Invite email sent to {email}</p>}
               <p className="text-xs text-gray-400 mb-4">Share this invite link with them:</p>
               
               <div className="bg-gray-50 rounded-xl p-3 mb-4 flex items-center gap-2">
@@ -126,6 +148,16 @@ export default function AddFriendsSheet({ open, onClose, circleId, onAdded }) {
                   value={name}
                   onChange={e => setName(e.target.value)}
                   placeholder="e.g. Ahmad Rizal"
+                  className="bg-[#F5F5F5] border-0 rounded-xl h-11 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-400 mb-1 block">Their email <span className="text-gray-300">(optional — sends invite automatically)</span></label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="e.g. ahmad@example.com"
                   className="bg-[#F5F5F5] border-0 rounded-xl h-11 text-sm"
                 />
               </div>
